@@ -1,0 +1,35 @@
+# Phase 0 hardware measurements. Fill in; null = not measured yet.
+# These replace the placeholders in etch_sim (AxisParams, ToyParams, Timing).
+toy:
+  model: null                      # classic / pocket
+  screen_mm: {x: null, y: null}    # drawable area (proposal cites ~153 x 107 for the classic)
+  knob_diameter_mm: null
+  knob_centre_spacing_mm: null
+  mass_g: null
+  sign_convention:                 # turn each knob clockwise seen from the front: which way does the pen go?
+    left_knob_cw_moves: null       # right / left
+    right_knob_cw_moves: null      # up / down
+
+knob:                              # per axis: sweep by hand or arm, log to CSV, run scripts/fit_hand_measurements.py
+  x: {k_mm_per_deg: null, delta_deg: null, fit_rms_mm: null, turns_across_screen: null}
+  y: {k_mm_per_deg: null, delta_deg: null, fit_rms_mm: null, turns_across_screen: null}
+  dead_zone_varies_near_edges: null
+
+grasp:
+  slip_deg_per_turn: null          # gate: under 2 deg per turn over 10 turns
+  knob_cap_used: null
+  switch_time_s: null              # release, move to the other knob, regrasp
+  knob_speed_used_dps: null
+
+erase:                             # gate: residual under 5% within 60 s
+  held_by: null                    # arm on frame / fixture
+  peak_speed_mps: null
+  shake_freq_hz: null
+  duration_s: null
+  residual_fraction: null
+
+camera:
+  scene_camera: null               # model and mount position
+  line_contrast_ok: null
+  pen_tip_visible: null
+  glare_notes: null
