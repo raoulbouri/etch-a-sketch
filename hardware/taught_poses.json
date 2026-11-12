@@ -1,0 +1,10 @@
+{
+  "_comment": "Tool poses [x, y, z, theta_x, theta_y, theta_z] (m, deg, arm base frame) read from the arm with scripts/teach_pose.py while the toy sits in its fixture. null = not taught yet. Every other value here is a PLACEHOLDER until checked on the arm.",
+  "knobs": {
+    "x": {"above": null, "grasp": null},
+    "y": {"above": null, "grasp": null}
+  },
+  "gripper": {"pre": 0.45, "closed": 1.0, "held_min": 0.30, "held_max": 0.90},
+  "j6_deg_per_knob_deg": {"x": -1.0, "y": -1.0},
+  "knob_speed_dps": 30.0
+}
