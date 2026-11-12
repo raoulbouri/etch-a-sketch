@@ -1,0 +1,26 @@
+# Python / tools
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.venv
+.pytest_cache/
+
+# OS
+.DS_Store
+
+# Secrets
+.env
+.env.*
+
+# Generated output, kept local
+out/
+models/generated/
+test_images/
+
+# Agent working docs: tracked on `dev` only (force-added there), never on `main`.
+# Update main with scripts/promote_main.sh, which strips them.
+CLAUDE.md
+MEMORY.md
