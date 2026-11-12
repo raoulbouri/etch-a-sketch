@@ -1,0 +1,7 @@
+{
+  "corners_px": [[637.0, 395.0], [925.0, 395.0], [953.0, 596.0], [633.0, 588.0]],
+  "image_wh": [1280, 720],
+  "source": "rgb",
+  "rotate_180": true,
+  "note": "TL, TR, BR, BL of the drawable screen in the RealSense colour image (image order). Read by eye from zoomed crops of capture 20261112-165933 (D435 on USB 2, 1280x720). rotate_180: toy is upside down in this view. Re-pick (analyze_sketch.py --pick) whenever the tripod or toy moves."
+}
