@@ -76,3 +76,15 @@ def test_extracts_faint_line_through_glare_and_noise():
     prec, rec = scores(ex.mask, truth, p.px_per_mm)
     assert prec > 0.9, prec
     assert rec > 0.8, rec
+
+
+def test_toy_order_corners_match_image_order():
+    """Corners clicked in the toy's order (BL, BR, TR, TL) rectify exactly like image-order corners,
+    and an upside-down view needs no separate rotate flag."""
+    frames, c = synthetic_view(n=2)                          # c: TL, TR, BR, BL in the image
+    ref = S.extract(frames, c).mask
+    toy = S.extract(frames, np.array([c[3], c[2], c[1], c[0]]), S.ExtractParams(toy_order=True)).mask
+    assert (ref == toy).mean() > 0.999
+    flipped_ref = S.extract(frames, c, S.ExtractParams(rotate_180=True)).mask
+    flipped_toy = S.extract(frames, np.array([c[1], c[0], c[3], c[2]]), S.ExtractParams(toy_order=True)).mask
+    assert (flipped_ref == flipped_toy).mean() > 0.999

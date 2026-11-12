@@ -6,12 +6,12 @@ The IR dot projector is switched ON only while depth frames are taken and OFF fo
 so the dots do not cover the screen. Every frame of a burst is saved, plus a per-pixel median (noise)
 and minimum (keeps a thin dark line that flickers) of the burst.
 
-Needs librealsense, which on macOS means pyrealsense2-macosx under sudo. Run it through the wrapper:
+Needs pyrealsense2 (Linux: `uv sync --group realsense`; blocked on macOS). Run it through the wrapper:
 
-    sudo sh scripts/rs_capture.sh                    # RGB burst
-    sudo sh scripts/rs_capture.sh --all              # RGB + depth + IR
-    sudo sh scripts/rs_capture.sh --all --exposure 120 --frames 12 --tag square
-    sudo sh scripts/rs_capture.sh --max-width 1280      # cap the colour size
+    sh scripts/rs_capture.sh                    # RGB burst
+    sh scripts/rs_capture.sh --all              # RGB + depth + IR
+    sh scripts/rs_capture.sh --all --exposure 120 --frames 12 --tag square
+    sh scripts/rs_capture.sh --max-width 1280      # cap the colour size
 
 Output: test_images/rs/<YYYYmmdd-HHMMSS>[_tag]/ (the folder is git-ignored; clean it whenever you like).
 Only numpy, OpenCV and pyrealsense2 are imported, so any Python that has those works.
@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -128,7 +129,7 @@ def main() -> None:
 
     ctx = rs.context()
     if not len(ctx.query_devices()):
-        raise SystemExit("no RealSense found (plugged in? run through scripts/rs_capture.sh with sudo)")
+        raise SystemExit("no RealSense found (plugged in? on Linux check the udev rules, see README)")
     dev = ctx.query_devices()[0]
     info = {k: dev.get_info(getattr(rs.camera_info, k)) for k in
             ("name", "serial_number", "firmware_version", "usb_type_descriptor")
@@ -140,6 +141,8 @@ def main() -> None:
 
     pipe = rs.pipeline(ctx)
     profile, desc, fps = start(pipe, dev, a, a.all)
+    if os.environ.get("RS_READY_FILE"):
+        Path(os.environ["RS_READY_FILE"]).touch()        # camera is ours: the wrapper stops killing camera services
     settle = max(5, 2 * fps)                             # ~2 s for auto exposure, whatever the frame rate
     out = ROOT / (time.strftime("%Y%m%d-%H%M%S") + (f"_{a.tag}" if a.tag else ""))
     out.mkdir(parents=True, exist_ok=True)               # only once streaming works: no empty folders

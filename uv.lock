@@ -30,6 +30,9 @@ dev = [
     { name = "imageio-ffmpeg" },
     { name = "pytest" },
 ]
+realsense = [
+    { name = "pyrealsense2", marker = "sys_platform == 'linux'" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -47,6 +50,7 @@ dev = [
     { name = "imageio-ffmpeg", specifier = ">=0.8.1" },
     { name = "pytest", specifier = ">=9.2.0" },
 ]
+realsense = [{ name = "pyrealsense2", marker = "sys_platform == 'linux'", specifier = ">=2.55" }]
 
 [[package]]
 name = "glfw"
@@ -392,6 +396,17 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/6f/16/912b7225d56284859cd9a672827f18be43f8012f8b7b932bc4bd959a298e/pyopengl-3.1.10.tar.gz", hash = "sha256:c4a02d6866b54eb119c8e9b3fb04fa835a95ab802dd96607ab4cdb0012df8335", size = 1915580, upload-time = "2025-08-18T02:33:01.76Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/de/e4/1ba6f44e491c4eece978685230dde56b14d51a0365bc1b774ddaa94d14cd/pyopengl-3.1.10-py3-none-any.whl", hash = "sha256:794a943daced39300879e4e47bd94525280685f42dbb5a998d336cfff151d74f", size = 3194996, upload-time = "2025-08-18T02:32:59.902Z" },
+]
+
+[[package]]
+name = "pyrealsense2"
+version = "2.59.1.11053"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fc/aa/d740d01d8e244a837d2a7937592c2e506229f79f8664c2b9cd7f3ac2565a/pyrealsense2-2.59.1.11053-cp312-cp312-manylinux1_x86_64.whl", hash = "sha256:5da55a75e0af0fa4064e7496289a93a27af2aee0a650ca2b47756eda0c74d578", size = 13423985, upload-time = "2026-10-11T08:57:58.266Z" },
+    { url = "https://files.pythonhosted.org/packages/19/b4/66b1e773d48ea91657b0a8782fe3d9b156ac03b2b87bfc74b352007b6ce5/pyrealsense2-2.59.1.11053-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:38310867ca6ba29aefcb313ad65aac7a6d8937f8c9f32d094c8345d904855811", size = 7094617, upload-time = "2026-10-11T08:58:06.608Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/b9/ee25f05bf0ab9f70a8c616e64108832839d9e3d67f278d85ae70fd96974a/pyrealsense2-2.59.1.11053-cp313-cp313-manylinux1_x86_64.whl", hash = "sha256:7655a95efbbf0d0b9e1ca80e738c370e370618b76becf721a5f5d7eb28027f17", size = 13422789, upload-time = "2026-10-11T08:58:25.478Z" },
+    { url = "https://files.pythonhosted.org/packages/84/b6/541db0e62e0c03a4c05b4ba4532a714cde3e629e60c280f33deb41ad3819/pyrealsense2-2.59.1.11053-cp314-cp314-manylinux1_x86_64.whl", hash = "sha256:461e07ee1e3fd0546f832d82de9b4cea6542b5cc841ef9b5e9f9239ab492366c", size = 13891727, upload-time = "2026-10-11T08:58:43.334Z" },
 ]
 
 [[package]]

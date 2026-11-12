@@ -1,12 +1,14 @@
 """Extract the etched sketch from a RealSense capture (scripts/rs_capture.sh). No arm, no camera access.
 
-    uv run python scripts/analyze_sketch.py                          # newest capture, RGB frames
+    uv run python scripts/analyze_sketch.py                          # newest capture in test_images/rs/
     uv run python scripts/analyze_sketch.py test_images/rs/<dir> --source ir
     uv run python scripts/analyze_sketch.py --pick                    # click the 4 screen corners once
     uv run python scripts/analyze_sketch.py --image photo.png         # any single image
 
 Screen corners: hand-picked ones from hardware/scene_camera_screen.json when they were picked on the
-same source (rgb/ir) at the same image size, otherwise found automatically. Check corners.png either way.
+same source at the same image size, otherwise found automatically. Check corners.png either way.
+--pick: click the corners as seen from the KNOB side: bottom-left (near the left knob), bottom-right,
+top-right, top-left. That order fixes the toy's orientation whatever way the camera sees it.
 Output: test_images/analysis/<capture>_<source>/ (corners.png, panel.png, mask.png, stats.json).
 panel.png: rectified | lighting-flattened | line response | mask (red = line, blue = glare, ignored).
 """
@@ -34,14 +36,14 @@ def pick_corners(img_bgr: np.ndarray) -> np.ndarray:
         if event == cv2.EVENT_LBUTTONDOWN and len(pts) < 4:
             pts.append((x / scale, y / scale))
 
-    win = "click TL, TR, BR, BL of the screen; r restart, Enter accept, q abort"
+    win = "screen corners as seen from the KNOB side: BL (near left knob), BR (near right knob), TR, TL; r restart, Enter accept"
     cv2.namedWindow(win)
     cv2.setMouseCallback(win, on_click)
     while True:
         v = show.copy()
         for i, (x, y) in enumerate(pts):
             cv2.circle(v, (int(x * scale), int(y * scale)), 4, (0, 0, 255), -1)
-            cv2.putText(v, "TL TR BR BL".split()[i], (int(x * scale) + 6, int(y * scale) - 6),
+            cv2.putText(v, S.TOY_ORDER.split()[i], (int(x * scale) + 6, int(y * scale) - 6),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         cv2.imshow(win, v)
         k = cv2.waitKey(30) & 0xFF
@@ -52,7 +54,7 @@ def pick_corners(img_bgr: np.ndarray) -> np.ndarray:
         elif k in (13, 10) and len(pts) == 4:
             break
     cv2.destroyAllWindows()
-    return S.order_corners(np.array(pts))
+    return np.array(pts, np.float32)            # kept in click order (toy order)
 
 
 def load_frames(src: Path, source: str) -> list[np.ndarray]:
@@ -81,7 +83,7 @@ def main() -> None:
     else:
         src = a.capture or max((ROOT / "rs").glob("*/"), key=lambda p: p.name, default=None)
         if src is None:
-            raise SystemExit("no captures in test_images/rs; run: sudo sh scripts/rs_capture.sh")
+            raise SystemExit("no captures in test_images/rs; run: sh scripts/rs_capture.sh grab")
         name = f"{src.name}_{a.source}"
     frames = load_frames(src, a.source)
     first = frames[0]
@@ -91,9 +93,7 @@ def main() -> None:
     corners, how = None, ""
     if a.pick:
         corners, how = pick_corners(first_bgr), "picked"
-        S.save_screen_corners(corners, (w, h))
-        d = json.loads(S.SCREEN_FILE.read_text())
-        S.SCREEN_FILE.write_text(json.dumps({**d, "source": a.source}, indent=2))   # RGB and IR views differ
+        S.save_toy_corners(corners, (w, h), a.source)
         print(f"saved corners to {S.SCREEN_FILE}")
     elif not a.auto and S.SCREEN_FILE.exists():
         saved = json.loads(S.SCREEN_FILE.read_text())
@@ -111,9 +111,7 @@ def main() -> None:
     view = first_bgr.copy()
     cv2.polylines(view, [corners.astype(np.int32)], True, (0, 255, 0), 2)
     cv2.imwrite(str(out / "corners.png"), view)
-    p = S.ExtractParams()
-    if S.SCREEN_FILE.exists():
-        p.rotate_180 = bool(json.loads(S.SCREEN_FILE.read_text()).get("rotate_180", False))
+    p = S.screen_params() if how in ("saved", "picked") else S.ExtractParams()   # auto: camera orientation
     ex = S.extract(frames, corners, p)
     cv2.imwrite(str(out / "panel.png"), S.debug_panel(ex))
     cv2.imwrite(str(out / "mask.png"), ex.mask.astype(np.uint8) * 255)

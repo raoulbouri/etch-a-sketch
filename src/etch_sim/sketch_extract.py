@@ -51,6 +51,7 @@ class ExtractParams:
     min_strength_k: float = 8.0        # PLACEHOLDER: a short component must average this many noise sigmas...
     long_mm: float = 20.0              # ...unless it is at least this long (real faint lines are long)
     rotate_180: bool = False           # toy seen upside down (knobs at the far side of the image)
+    toy_order: bool = False            # corners are given in the toy's own order (BL, BR, TR, TL; see below)
 
 
 @dataclass
@@ -111,10 +112,36 @@ def find_screen(gray: np.ndarray, g: ToyGeometry | None = None) -> np.ndarray | 
     return best
 
 
+TOY_ORDER = "BL BR TR TL"   # bottom-left (nearest the left knob), bottom-right (nearest the right knob), ...
+
+
 def load_screen_corners(path: Path = SCREEN_FILE) -> np.ndarray | None:
+    """Saved corners. In toy order (as clicked) they are returned as they are; older files hold
+    image-order corners (TL, TR, BR, BL in the image), which are sorted."""
     if not path.exists():
         return None
-    return order_corners(np.array(json.loads(path.read_text())["corners_px"], np.float32))
+    d = json.loads(path.read_text())
+    c = np.array(d["corners_px"], np.float32)
+    return c if d.get("order") == TOY_ORDER else order_corners(c)
+
+
+def screen_params(path: Path = SCREEN_FILE) -> "ExtractParams":
+    """ExtractParams matching the saved corners file (toy order, or image order + rotate_180)."""
+    if not path.exists():
+        return ExtractParams()
+    d = json.loads(path.read_text())
+    if d.get("order") == TOY_ORDER:
+        return ExtractParams(toy_order=True)
+    return ExtractParams(rotate_180=bool(d.get("rotate_180", False)))
+
+
+def save_toy_corners(corners: np.ndarray, image_size: tuple[int, int], source: str, path: Path = SCREEN_FILE) -> None:
+    """Corners clicked in the toy's own order, which fixes the orientation whatever the camera's view."""
+    path.write_text(json.dumps({"corners_px": np.asarray(corners).round(1).tolist(), "order": TOY_ORDER,
+                                "image_wh": list(image_size), "source": source,
+                                "note": "drawable-screen corners, seen from the knob side: bottom-left (near the left "
+                                        "knob), bottom-right, top-right, top-left. Re-pick if the camera or toy moves."},
+                               indent=2))
 
 
 def save_screen_corners(corners: np.ndarray, image_size: tuple[int, int], path: Path = SCREEN_FILE) -> None:
@@ -122,10 +149,18 @@ def save_screen_corners(corners: np.ndarray, image_size: tuple[int, int], path: 
                                 "note": "TL, TR, BR, BL of the drawable screen in the scene camera image"}, indent=2))
 
 
-def rectify_quad(img: np.ndarray, corners: np.ndarray, g: ToyGeometry, px_per_mm: float) -> np.ndarray:
+def rectify_quad(img: np.ndarray, corners: np.ndarray, g: ToyGeometry, px_per_mm: float,
+                 toy_order: bool = False) -> np.ndarray:
+    """Front-on view of the screen. Image-order corners give the camera's orientation; toy-order
+    corners (BL, BR, TR, TL) give the toy's own frame directly (left knob bottom-left, y up)."""
     w, h = round(g.screen_mm[0] * px_per_mm), round(g.screen_mm[1] * px_per_mm)
-    dst = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]], np.float32)
-    M = cv2.getPerspectiveTransform(order_corners(corners), dst)
+    if toy_order:
+        src = np.asarray(corners, np.float32)
+        dst = np.array([[0, h - 1], [w - 1, h - 1], [w - 1, 0], [0, 0]], np.float32)
+    else:
+        src = order_corners(corners)
+        dst = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]], np.float32)
+    M = cv2.getPerspectiveTransform(src, dst)
     return cv2.warpPerspective(img, M, (w, h), flags=cv2.INTER_CUBIC)
 
 
@@ -170,8 +205,8 @@ def extract(frames: list[np.ndarray] | np.ndarray, corners: np.ndarray | None = 
     p, g = p or ExtractParams(), g or ToyGeometry()
     frames = [frames] if isinstance(frames, np.ndarray) else list(frames)
     if corners is not None:
-        frames = [rectify_quad(f, corners, g, p.px_per_mm) for f in frames]
-        if p.rotate_180:                                    # into the toy's own frame: knobs at the bottom
+        frames = [rectify_quad(f, corners, g, p.px_per_mm, p.toy_order) for f in frames]
+        if p.rotate_180 and not p.toy_order:                                    # into the toy's own frame: knobs at the bottom
             frames = [cv2.rotate(f, cv2.ROTATE_180) for f in frames]
     st = np.stack(frames)
     comb = (np.median(st, axis=0) if p.burst == "median" else st.min(axis=0)).astype(np.uint8)

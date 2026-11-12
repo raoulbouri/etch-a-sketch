@@ -54,6 +54,9 @@ hardware tests start as early as possible and their measurements flow back into 
     these two files: they are in `.gitignore` and were force-added on `dev` only. Update `main` only with
     `scripts/promote_main.sh` (which strips them), never by checking out `main` here or merging by hand.
     CI (`.github/workflows/guard-main.yml`) rejects them on `main`.
+15. **The RealSense camera runs on Linux only.** Never run librealsense on macOS (`rs_capture.sh`, `rs_*.py`),
+    never kill macOS camera services (`UVCAssistant`/`VDCAssistant`), and never pass `RS_ALLOW_MAC`: it froze
+    the whole Mac three times on 2026-11-12. Camera work happens on a Linux laptop (README "Real scene camera").
 
 ## MEMORY.md protocol
 
@@ -84,8 +87,18 @@ uv run python scripts/s0_demo.py     # toy kernel: calibrate, erase, draw; write
 uv run python scripts/s1_demo.py     # MuJoCo scene: cameras, markers, live screen; writes out/s1/
 uv run python scripts/s2_demo.py     # MuJoCo: arm turns knobs, camera calibration; writes out/s2/
 uv run python scripts/make_video.py   # simulation video -> out/video/
-sudo sh scripts/rs_capture.sh grab   # real camera: 10 colour frames -> test_images/rs/
 uv run python scripts/analyze_sketch.py  # extract the sketch from the newest capture -> test_images/analysis/
+```
+
+Real camera, Linux only (rule 15). Setup and the full knob-calibration procedure (turn order, start position,
+`--flip`, expected accuracy) are in README "Real scene camera" and "Knob calibration by hand":
+
+```bash
+uv sync --group realsense                        # pyrealsense2
+sh scripts/rs_capture.sh grab                    # 10 colour frames -> test_images/rs/<time>/
+uv run python scripts/analyze_sketch.py --pick   # click screen corners: BL (near left knob), BR, TR, TL
+sh scripts/rs_capture.sh serve                   # terminal 1: camera server for a calibration session
+uv run python scripts/hand_calibrate.py x --save # terminal 2: then `y --save`; writes phase0_measurements.yaml
 ```
 
 `out/` and `test_images/` are ignored by git. Python 3.12, dependencies in `pyproject.toml`.

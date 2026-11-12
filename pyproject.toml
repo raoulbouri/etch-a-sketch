@@ -23,3 +23,6 @@ dev = [
     "imageio-ffmpeg>=0.8.1",
     "pytest>=9.2.0",
 ]
+realsense = [
+    "pyrealsense2>=2.55 ; sys_platform == 'linux'",
+]

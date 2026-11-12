@@ -108,15 +108,63 @@ newest first, timestamped from the system clock).
 - Never run on the arm. Unverified there: speed constraint on joint moves, short-way rotation, gripper stall on
   the knob, the sign of joint 6 versus knob direction (`j6_deg_per_knob_deg`, PLACEHOLDER -1).
 
+### Real scene camera and knob calibration (verified 2026-11-12)
+- Scene camera: Intel RealSense D435 (fw 05.17.00.10) on a tripod, on a USB 2 cable (no USB 3 cable available):
+  colour 1280x720 @ 6 fps. Screen ~288 px wide = ~1.9 px/mm; extraction works (spiral and "5" captures).
+- librealsense on macOS froze the Mac 3 times (kills macOS camera services); `rs_capture.sh` refuses on macOS
+  (CLAUDE.md rule 15). Camera work runs on a teammate's Linux laptop: `uv sync --group realsense`.
+- Raoul's toy, seen from the knob side: left knob cw = pen right, right knob cw = pen up (default plan, no --flip).
+- Knob mm/deg and backlash: NOT measured yet. Procedure: README "Knob calibration by hand" (`hand_calibrate.py
+  x --save`, then `y --save`, with `rs_capture.sh serve` running). Results land in hardware/phase0_measurements.yaml;
+  then update `AxisParams` defaults and this section (rule 5). Hand accuracy: k ~1%, backlash ~5-8 deg.
+- hardware/scene_camera_screen.json holds corners for the Mac-era colour view; re-pick on the new setup.
+
 ### Open decisions
 - Decided 2026-11-09: bounded-routine approval (a person approves one envelope at the motion server); chunked
   joint 6 moves; a motion server in aims-kinova with etch-sim as client.
 - One arm or two (blue 192.168.2.9 and green 192.168.2.10). Built for one so far.
-- Scene camera hardware (plain USB webcam suggested) and mount.
+- Scene camera: D435 decided; mount and host (Linux laptop) settled 2026-11-12; USB 3 cable would give more modes.
 - Which LLM API for the agent.
 
 ## Log
 
+### 2026-11-12 18:37 EST | Raoul Bouri (+ Claude)
+- Reverted the macOS AVFoundation camera path (avcam.py, cam_grab.py removed; imageio-ffmpeg back to dev deps).
+  Back to librealsense, but on Linux only: Raoul or a teammate will calibrate on a non-macOS laptop.
+- `rs_capture.sh`: Linux runs as the user with no service-killing (pyrealsense2 via `uv sync --group realsense`,
+  Linux-only dependency group); macOS still refuses. `hand_calibrate.py` uses the `serve` camera server again.
+- Kept: toy-order corner picking (BL near left knob, BR, TR, TL). Fixed: `--save` used summary keys the fit no
+  longer has (would have crashed at the end of a session). CLAUDE.md: rule 15 + camera commands (Raoul asked for
+  the docs to carry the calibration process). Tested with a stand-in camera on the Mac only; 23 tests pass.
+### 2026-11-12 18:30 EST | Raoul Bouri (+ Claude)
+- The single-push-aside camera server ALSO froze the Mac (forced restart 18:22, before any capture). Decision:
+  no librealsense on the Mac. `rs_capture.sh` now refuses on macOS (exit 3); rs_* scripts kept for a Linux host.
+- New path: `etch_sim.avcam` + `scripts/cam_grab.py` read the D435 through AVFoundation (ffmpeg from imageio-ffmpeg,
+  now a runtime dependency): no sudo, nothing killed. Over USB 2 that is the LEFT IR camera (grey, 1280x720) with
+  the dot projector on: Raoul to tape over the projector. Raoul declined using the iPhone (Continuity Camera).
+- Corners are now clicked in toy order (BL near left knob, BR, TR, TL; `order` in scene_camera_screen.json), so
+  no rotate flag is needed; old image-order RGB corners are ignored. hand_calibrate uses avcam directly.
+- Not yet run on the camera: my app has no camera permission; Raoul runs cam_grab.py from his terminal. 23 tests pass.
+### 2026-11-12 18:17 EST | Raoul Bouri (+ Claude)
+- Two hand-calibration runs froze the Mac at the first per-turn capture. Crash report (WindowServer watchdog,
+  18:09): WindowServer main thread stuck in CoreMediaIO. Cause: a fresh `sudo rs_capture.sh grab` per turn, each
+  killing UVCAssistant/VDCAssistant again while they were still respawning from the previous one.
+- Fix: `scripts/rs_server.py` (`sudo sh scripts/rs_capture.sh serve`) opens the camera once per session and serves
+  bursts over 127.0.0.1:8766; hand_calibrate.py now asks it. Wrapper kill loop stops as soon as the camera streams
+  (ready file), max 20 s. Tested with a stand-in camera library only; not yet on the real camera.
+- Raoul's toy (seen from the knob side): left knob cw = pen right, right knob cw = pen up (matches default plan, no --flip).
+  Failed sessions deleted.
+### 2026-11-12 17:58 EST | Raoul Bouri (+ Claude)
+- Added hand calibration with full turns only (no angle dial): `src/etch_sim/turn_measure.py` (pen after each turn
+  from before/after masks; fit), `scripts/hand_calibrate.py` (guided session, sudo grab per turn, `--replay`, `--save`,
+  `--flip x|y`), `tests/test_turn_measure.py` (4 tests; 22 total pass). scikit-image was tried for thinning
+  (centreline ends retreated too far) and removed again.
+- Key finding: the measured line end overshoots the pen by ~half the line width in the direction of travel; that
+  flips sign on reversal and reads as backlash (first version: 3 deg measured vs 24 true). Fixed by measuring the
+  overshoot from the connector line drawn between rows. Backlash per row (360n - L/k) was abandoned: 1% k error = 11 deg.
+- Synthetic camera sessions, exact turns: k within 0.2%, backlash within 2-3 deg (camera ~0.5 mm/px floor). With
+  +-4-6 deg hand error per turn: k ~1-2%, backlash +-6-8 deg. Precise backlash should come from the arm (exact angles).
+- Points within 4 mm of the screen edge are excluded (border margin clips them). Not yet run on the real toy.
 ### 2026-11-12 17:32 EST | Raoul Bouri (+ Claude)
 - First push to github.com/raoulbouri/etch-a-sketch (public). `main` = code without CLAUDE.md/MEMORY.md; `dev` =
   main + these two (force-added; both are in .gitignore). Rule 14 added; `scripts/promote_main.sh` updates main

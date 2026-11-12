@@ -52,17 +52,62 @@ uv run python scripts/make_video.py   # video of the arm drawing; --shape square
 uv run python scripts/fit_hand_measurements.py hardware/x_sweep.csv   # fit mm/deg and backlash from hand data
 ```
 
-Real scene camera (read-only, no arm). Captures and results go to `test_images/`, which git ignores:
+Real scene camera (Intel RealSense D435; read-only, no arm). Captures and results go to `test_images/`,
+which git ignores. **Use a Linux laptop for the camera.** On macOS librealsense can only open the D435 after
+killing macOS's camera services (with `sudo`), and that froze the whole Mac three times; `rs_capture.sh`
+therefore refuses to run on macOS. Everything else (sim, tests, `--replay`) runs on any OS.
+
+One-time setup on the Linux laptop:
 
 ```bash
-sudo sh scripts/rs_capture.sh grab               # 10 colour frames, 1280x720 (works over USB 2)
-sudo sh scripts/rs_capture.sh --all              # colour + aligned depth + infrared (not yet run on the camera)
-uv run python scripts/analyze_sketch.py --pick   # newest capture: click the 4 screen corners once
-uv run python scripts/analyze_sketch.py          # newest capture -> test_images/analysis/<capture>_rgb/
+git clone -b dev https://github.com/raoulbouri/etch-a-sketch.git && cd etch-a-sketch
+uv sync --group realsense                 # adds pyrealsense2 (Linux wheels, Python 3.12)
+uv run pytest -q                          # everything should pass
 ```
 
-On macOS the RealSense library needs `sudo`, and the wrapper briefly stops macOS's camera service; it always
-restarts it, and gives up after 35 s. It uses the Python environment of the aims-kinova repo (`RS_PYTHON` to change).
+MuJoCo renders offscreen; on a Linux machine without a display, set `MUJOCO_GL=egl` (or `osmesa`) for the sim tests.
+
+If the camera is not found or access is denied, install Intel's udev rules
+([99-realsense-libusb.rules](https://github.com/IntelRealSense/librealsense/blob/master/config/99-realsense-libusb.rules)
+into `/etc/udev/rules.d/`, then `sudo udevadm control --reload-rules && sudo udevadm trigger`) and replug.
+
+Camera commands:
+
+```bash
+sh scripts/rs_capture.sh grab                    # one-off: 10 colour frames -> test_images/rs/<time>/
+uv run python scripts/analyze_sketch.py --pick   # newest capture: click the 4 screen corners (once per camera position)
+uv run python scripts/analyze_sketch.py          # newest capture -> test_images/analysis/<capture>_rgb/panel.png
+sh scripts/rs_capture.sh serve                   # camera server for a session: own terminal, leave running
+sh scripts/rs_capture.sh --all                   # colour + aligned depth + infrared (not yet run on the camera)
+```
+
+Click the corners as seen from the knob side: bottom-left (nearest the left knob), bottom-right, top-right,
+top-left. That order fixes the toy's orientation whichever way the camera sees it.
+
+### Knob calibration by hand (mm per degree, backlash, knob directions)
+
+Needs only a tape mark on each knob, so full turns can be counted. You turn rows of full turns, reversing
+each row, with one turn of the other knob between rows; after every turn the camera takes a burst and the
+new piece of line is measured.
+
+1. Mount the D435 on its tripod looking at the screen. Do one `grab` and `analyze_sketch.py --pick` (above).
+2. Terminal 1: `sh scripts/rs_capture.sh serve`, wait for `camera streaming`, leave it running.
+3. Erase the screen. Put the pen about 1.5 cm in from the bottom-left corner (seen from the knob side).
+4. Terminal 2: `uv run python scripts/hand_calibrate.py x --save`. It prints each turn; make it, press Enter.
+5. Erase, back to the bottom-left start, then `uv run python scripts/hand_calibrate.py y --save`.
+6. Ctrl-C the server. Results: `hardware/phase0_measurements.yaml`, and each session's captures and
+   `fit.json` in `test_images/calib/<session>/` (re-measure later with `--replay <session>`).
+
+Turn order. Left knob (`x`), 11 turns: left cw x3, right cw x1, left ccw x3, right cw x1, left cw x3.
+Right knob (`y`), 11 turns: right cw x2, left cw, right ccw x2, left cw, right cw x2, left cw, right ccw x2.
+("cw" = clockwise looking down at the knob; one turn = tape mark back to its start.)
+The plan assumes clockwise moves the pen right (left knob) and up (right knob), true on Raoul's toy; for a
+knob that goes the other way add `--flip x` or `--flip y`. If the first turn barely moves the pen, the script
+says so: press `q`, erase, fix the start or the flip, rerun.
+
+During each capture keep hands and shadows off the screen and do not bump the toy or tripod.
+Expected accuracy (from simulated camera sessions): mm per degree to about 1%; backlash to about 5-8 deg,
+because a hand turn rarely ends exactly on the mark. Precise backlash will come from the arm later.
 
 Real arm: all motion goes through the motion server in the aims-kinova repo, inside a motion envelope that a
 person approves when starting it. A refused or failed motion raises `ArmRefused`; nothing retries. Knob poses
@@ -78,6 +123,7 @@ are taught with `scripts/teach_pose.py` into `hardware/taught_poses.json`.
 | `calibration.py`, `draw.py`, `scoring.py` | Back-and-forth calibration sweep and fit; open-loop drawer; chamfer score |
 | `perception.py` | ArUco board localisation, rectification, line mask and pen tracking (simulation) |
 | `sketch_extract.py` | Line extraction for real camera images |
+| `turn_measure.py` | Pen position after each turn from before/after line masks; full-turn calibration fit |
 | `mj/` | 6-DoF Gen3 generated from Kinova's xacro, toy model, scene, IK, MuJoCo skills backend |
 | `real/backend.py` | Client of the aims-kinova motion server |
 
