@@ -20,7 +20,7 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); }
-.app { display: grid; grid-template-columns: minmax(0, 1fr) 340px; height: 100%; min-height: 560px; }
+.app { display: grid; grid-template-columns: minmax(0, 1fr) clamp(290px, 42%, 340px); height: 100%; min-height: 560px; }
 .stage { position: relative; min-height: 0; background: var(--surface-2); }
 #view { position: absolute; inset: 0; }
 #view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
@@ -55,10 +55,11 @@ button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent);
 .note p { margin: 0 0 6px; }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); text-align: center; padding: 24px; z-index: 2; }
 .loading[hidden] { display: none; }
-@media (max-width: 760px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 46vh) auto; height: auto; min-height: 100%; }
+@media (max-width: 620px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: minmax(260px, min(46vh, 380px)) auto; height: auto; min-height: 100%; }
   .panel { border-left: 0; border-top: 1px solid var(--border); overflow: visible; }
   .hint3d { display: none; }
+  .pad { width: 100%; max-width: 420px; margin: 0 auto; }
 }
 </style>
 </head>
