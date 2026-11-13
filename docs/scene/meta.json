@@ -1,0 +1,104 @@
+{
+ "files": [
+  "aruco_4x4_0.png",
+  "aruco_4x4_1.png",
+  "aruco_4x4_2.png",
+  "aruco_4x4_3.png",
+  "base_link.STL",
+  "bicep_link.STL",
+  "bracelet_with_vision_link.STL",
+  "forearm_link.STL",
+  "shoulder_link.STL",
+  "spherical_wrist_1_link.STL",
+  "spherical_wrist_2_link.STL",
+  "base.stl",
+  "base_mount.stl",
+  "coupler.stl",
+  "driver.stl",
+  "follower.stl",
+  "pad.stl",
+  "silicone_pad.stl",
+  "spring_link.stl"
+ ],
+ "ready_deg": [
+  0.0,
+  20.0,
+  -110.0,
+  0.0,
+  -50.0,
+  90.0
+ ],
+ "motion": {
+  "joint_speed_dps": 40.0,
+  "knob_speed_dps": 30.0,
+  "safe_height_m": 0.045,
+  "tip_clearance_m": 0.0025,
+  "pregrasp_margin_m": 0.012,
+  "settle_s": 0.25,
+  "grip_s": 0.6
+ },
+ "screen_px_per_mm": 4.0,
+ "toy": {
+  "body_mm": [
+   229.0,
+   187.0,
+   40.0
+  ],
+  "screen_mm": [
+   153.0,
+   107.0
+  ],
+  "screen_centre_mm": [
+   0.0,
+   13.0
+  ],
+  "knob_radius_mm": 14.0,
+  "knob_height_mm": 14.0,
+  "knob_xy_mm": {
+   "left": [
+    -90.0,
+    -68.0
+   ],
+   "right": [
+    90.0,
+    -68.0
+   ]
+  },
+  "knob_cw_positive": true,
+  "marker_mm": 20.0,
+  "marker_xy_mm": {
+   "0": [
+    -97.0,
+    78.0
+   ],
+   "1": [
+    97.0,
+    78.0
+   ],
+   "2": [
+    40.0,
+    -72.0
+   ],
+   "3": [
+    -40.0,
+    -72.0
+   ]
+  }
+ },
+ "kernel": {
+  "x": {
+   "k_mm_per_deg": 0.085,
+   "half_dead_deg": 9.0,
+   "transition_deg": 4.5,
+   "travel_mm": 153.0
+  },
+  "y": {
+   "k_mm_per_deg": 0.085,
+   "half_dead_deg": 9.0,
+   "transition_deg": 4.5,
+   "travel_mm": 107.0
+  },
+  "line_width_mm": 0.6,
+  "snap_strain_deg": 180.0
+ }
+}

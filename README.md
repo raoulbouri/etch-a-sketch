@@ -19,6 +19,20 @@ The arm grasps a knob, turns it, releases, switches to the other knob, and the s
 
 ![Simulated arm drawing a spiral](media/sim_spiral.gif)
 
+## Browser demo
+
+`docs/` is a static page that runs the MuJoCo scene in the browser with the official MuJoCo WebAssembly
+build: draw a line on a pad and the arm plans the knob turns and draws it. `docs/js/` is a JavaScript port
+of `draw.py`, `mj/ik.py`, `mj/backend.py` and `kernel.py`; it reads the board pose from the simulation
+instead of the markers. The page lives on the `web-demo` branch only.
+
+```bash
+uv run python scripts/export_web_scene.py   # regenerate docs/scene after changing the scene or toy numbers
+python3 -m http.server -d docs 8000         # then open http://localhost:8000
+```
+
+`web/portfolio-page.md` is the draft text for the portfolio project page that embeds the demo.
+
 ## Sketch extraction from the real camera
 
 The scene camera sees a faint grey line on a reflective grey screen. `sketch_extract.py` finds it through glare
