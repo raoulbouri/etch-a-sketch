@@ -6,11 +6,10 @@ import { View } from './view.js';
 import { Sketchpad } from './sketchpad.js';
 
 const $ = (id) => document.getElementById(id);
-const params = new URLSearchParams(location.search);
 
 // ---- theme: ?theme=dark|light, else the system setting; a parent page can post {theme} to switch ----
-let theme = params.get('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-document.documentElement.dataset.theme = theme;
+// The inline script in index.html has already applied it, before the first paint.
+let theme = document.documentElement.dataset.theme;
 
 const SWITCH_S = 3.1;                // measured in this simulation: release one knob, move, grasp the other
 const PRESETS = {
@@ -167,7 +166,7 @@ async function main() {
     setSpeed(speed);
     window.addEventListener('message', (e) => {
       const t = e.data && e.data.theme;
-      if (t === 'dark' || t === 'light') { theme = t; document.documentElement.dataset.theme = t; view.setTheme(t); }
+      if (t === 'dark' || t === 'light') { theme = t; document.documentElement.dataset.theme = t; document.documentElement.style.colorScheme = t; view.setTheme(t); }
     });
     $('loading').hidden = true;
     say('Ready. Draw a line on the pad.');

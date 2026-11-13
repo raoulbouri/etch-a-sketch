@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Etch A Sketch robot: live simulation</title>
 <meta name="description" content="Draw a line and a simulated Kinova Gen3 arm plans the knob turns and draws it on an Etch A Sketch, in MuJoCo, in your browser.">
+<script>
+// Set the theme before the first paint. The module scripts run only after the physics engine has
+// downloaded, so setting it there left a light page showing inside a dark site while loading.
+(function () {
+  var t = new URLSearchParams(location.search).get('theme');
+  if (t !== 'dark' && t !== 'light') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.dataset.theme = t;
+  document.documentElement.style.colorScheme = t;
+})();
+</script>
 <script type="importmap">{"imports": {"three": "./vendor/three.module.min.js"}}</script>
 <style>
 :root {
