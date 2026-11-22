@@ -106,7 +106,14 @@ newest first, timestamped from the system clock).
 - Run without an arm: in aims-kinova `PYTHONPATH=python python3 -m kinova.server --envelope envelopes/etch_draw.json --fake --yes`,
   then use `RealBackend(ArmClient())`.
 - First version uses taught knob poses with the toy in a fixture and keeps the wrist's current rotation between
-  knobs. Not built: wrist-camera frames and board re-localization, erase routine, scene-camera capture is untested.
+  knobs. Not built: wrist-camera frames and board re-localization, erase routine.
+- Scene camera in RealBackend (2026-11-22): frames from the camera server via `real/camera.RealSenseServer` (a burst
+  per capture; `save_dir` keeps every burst). Screen mapped from the clicked corners in scene_camera_screen.json
+  (`board="corners"`, default: the real toy has no markers) or ArUco (`board="markers"`). Corners mode cannot see the
+  toy move: re-pick after any bump or erase. Tested only with stand-in servers and a synthetic camera, not the D435.
+- run_tracker reports the line end, which overshoots the stylus by part of the round end cap in the direction of
+  travel: 1.0-1.6 mm on synthetic views (~2.3 px/mm), every step measured. Not corrected outside the calibration fit
+  (turn_measure.fit_session). A `tip_bias_mm` from the calibration sessions' fit.json would remove most of it.
 - Never run on the arm. Unverified there: speed constraint on joint moves, short-way rotation, gripper stall on
   the knob, the sign of joint 6 versus knob direction (`j6_deg_per_knob_deg`, PLACEHOLDER -1).
 
@@ -141,6 +148,13 @@ newest first, timestamped from the system clock).
 - Which LLM API for the agent.
 
 ## Log
+
+### 2026-11-22 16:17 EST | Harish Bhamitipadi Magesh (+ Claude)
+- Branch `harish/a4-camera` off dev e720833. `src/etch_sim/real/camera.py` (`RealSenseServer`, client of
+  rs_server.py); RealBackend takes a burst, maps the screen from clicked corners (default) or ArUco, feeds
+  sketch_extract + run_tracker. 3 new tests in test_real_backend.py (stand-in camera server; corners mode end to end
+  on a synthetic camera with the stand-in arm; missing corners). 32 tests pass. Not run on the D435 or the arm.
+- Found: run_tracker pen estimates overshoot by 1.0-1.6 mm along the move (end cap); test tolerance 2 mm, says why.
 
 ### 2026-11-22 14:42 EST | Yashasvi Sorapalli (+ Claude)
 - Added `src/etch_sim/run_tracker.py` (Yashasvi's three rules for a whole run) and `tests/test_run_tracker.py` (6 tests);

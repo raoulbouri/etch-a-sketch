@@ -6,8 +6,13 @@ it. If the server refuses or a motion fails, ArmRefused is raised and the script
 retried here.
 
 Knob poses are taught once (scripts/teach_pose.py) with the toy held in a fixture; re-localizing the
-board with the wrist camera comes later. The pen is measured from a scene camera with the same
-perception code as in simulation.
+board with the wrist camera comes later.
+
+The pen is measured from the scene camera: a burst of frames (camera.RealSenseServer), rectified to the
+screen frame, line extracted with sketch_extract, pen followed by run_tracker. The screen is mapped either
+from the four hand-clicked corners in hardware/scene_camera_screen.json (board="corners", the default:
+the real toy carries no markers yet; camera and toy must not move after picking) or from the ArUco
+markers as in simulation (board="markers").
 """
 from __future__ import annotations
 
@@ -71,9 +76,15 @@ def webcam(index: int = 0, width: int = 1920, height: int = 1080) -> Callable[[]
     return grab
 
 
+Frames = Callable[[], "np.ndarray | list[np.ndarray]"]      # one RGB frame or a burst
+
+
 class RealBackend:
-    def __init__(self, client: ArmClient, poses: dict | None = None,
-                 camera: Callable[[], np.ndarray] | None = None, geometry: ToyGeometry | None = None):
+    def __init__(self, client: ArmClient, poses: dict | None = None, camera: Frames | None = None,
+                 geometry: ToyGeometry | None = None, board: str = "corners", corners: np.ndarray | None = None):
+        """camera: returns one RGB frame or a burst (camera.RealSenseServer, webcam). board: "corners" maps the
+        screen from `corners` (toy order BL, BR, TR, TL, image px), else from hardware/scene_camera_screen.json;
+        "markers" uses the ArUco markers."""
         self.c = client
         self.poses = poses if poses is not None else json.loads(POSES_FILE.read_text())
         missing = [f"{a}.{k}" for a in ("x", "y") for k in ("above", "grasp") if not self.poses["knobs"][a].get(k)]
@@ -81,12 +92,21 @@ class RealBackend:
             raise ValueError(f"taught poses missing: {missing}. Teach them with scripts/teach_pose.py")
         self.camera = camera
         self.g = geometry or ToyGeometry()
+        if board not in ("corners", "markers"):
+            raise ValueError(f"board must be 'corners' or 'markers', not {board!r}")
+        self.board = board
+        if board == "markers":
+            self.corners, self._xp = None, S.ExtractParams()
+        elif corners is not None:
+            self.corners, self._xp = np.asarray(corners, np.float32), S.ExtractParams(toy_order=True)
+        else:                                                # None if never picked: reported at the first capture
+            self.corners, self._xp = S.load_screen_corners(), S.screen_params()
         self.n_switches = 0
         self.held: Axis | None = None
         self._last_axis: Axis | None = None
         # one run = from the first board sighting until the next erase (run_tracker rules 1-3)
         self._track_p = R.TrackParams()
-        self._tracker = R.RunTracker(R.knobs_from_toy(), self._track_p)
+        self._tracker = R.RunTracker(R.knobs_from_toy(), self._track_p, screen_mm=self.g.screen_mm)
         self._run_started = False
         self._moves: list[tuple[str, float]] = []           # (axis, knob degrees) since the last observation
         self._theta_z = float(self.c.call("status")["state"]["tool_pose"]["theta_z"])
@@ -150,44 +170,52 @@ class RealBackend:
         self.held = None
 
     # ---- camera ------------------------------------------------------------------
-    def _frame(self) -> np.ndarray:
+    def _frames(self) -> list[np.ndarray]:
         if self.camera is None:
             raise RuntimeError("no scene camera configured")
-        return self.camera()
+        f = self.camera()
+        return [f] if isinstance(f, np.ndarray) else list(f)
 
     def photo(self, camera: str = "scene") -> Image.Image:
         if camera != "scene":
             raise NotImplementedError("wrist camera frames are not wired up yet")
-        return Image.fromarray(self._frame())
+        return Image.fromarray(self._frames()[0])
+
+    def _extract(self) -> S.Extraction | None:
+        """One capture: rectify the burst to the screen frame and extract the line. None if the board is not found
+        (markers mode only; with corners the board is wherever it was when they were picked)."""
+        frames = self._frames()
+        if self.board == "corners":
+            if self.corners is None:
+                raise RuntimeError("no screen corners: capture once and run scripts/analyze_sketch.py --pick")
+            return S.extract(frames, self.corners, self._xp, self.g)
+        H = next((h for h in (P.board_homography(P.detect_markers(f), self.g) for f in frames) if h is not None), None)
+        if H is None:
+            return None
+        rects = [P.rectify(f, H, self.g, self._xp.px_per_mm) for f in frames]
+        return S.extract(rects, None, self._xp, self.g)
 
     def rectified(self) -> np.ndarray | None:
-        img = self._frame()
-        H = P.board_homography(P.detect_markers(img), self.g)
-        return None if H is None else P.rectify(img, H, self.g)
-
-    def _lines(self, rect: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Line mask (real-image extraction) and the pixels the camera can judge."""
-        ex = S.extract(rect, None, S.ExtractParams())
-        return ex.mask, R.visible_from(ex.flat, ex.unknown, self._track_p)
+        ex = self._extract()
+        return None if ex is None else ex.rectified
 
     def locate_board(self) -> bool:
-        """True if the scene camera sees enough markers to measure in the screen frame. The first sighting
-        starts the run: what is on the screen then is never taken for the pen's line."""
-        rect = self.rectified()
-        if rect is not None and not self._run_started:
-            self._tracker.start(self._lines(rect)[0])
+        """True if the screen can be measured from the scene camera. The first sighting starts the run: what is
+        on the screen then is never taken for the pen's line."""
+        ex = self._extract()
+        if ex is not None and not self._run_started:
+            self._tracker.start(ex.mask)
             self._run_started, self._moves = True, []
-        return rect is not None
+        return ex is not None
 
     def observe_pen(self) -> tuple[float, float]:
-        rect = self.rectified()
-        if rect is not None:
-            mask, vis = self._lines(rect)
+        ex = self._extract()
+        if ex is not None:
             if not self._run_started:
-                self._tracker.start(mask)
+                self._tracker.start(ex.mask)
                 self._run_started = True
             else:
-                self._tracker.update(mask, self._moves, vis)
+                self._tracker.update(ex.mask, self._moves, R.visible_from(ex.flat, ex.unknown, self._track_p))
             self._moves = []
         pen = self._tracker.pen_mm
         self.log.append({"t": self.clock_s, "skill": "observe_pen", "pen": pen})

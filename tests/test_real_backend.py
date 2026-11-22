@@ -98,3 +98,107 @@ def test_untaught_poses_are_rejected(rig):
     _, client = rig
     with pytest.raises(ValueError):
         RealBackend(client)                      # hardware/taught_poses.json still has nulls
+
+
+# ---- scene camera: camera-server client and clicked-corners board mode ------------------------------
+import cv2  # noqa: E402
+import numpy as np  # noqa: E402
+
+from etch_sim.kernel import ToyKernel, ToyParams  # noqa: E402
+from etch_sim.real import CameraServerError, RealSenseServer  # noqa: E402
+
+
+class CamStub(socketserver.ThreadingTCPServer):
+    """Speaks the scripts/rs_server.py protocol; a grab saves n pure-red frames."""
+    allow_reuse_address, daemon_threads = True, True
+
+    def __init__(self):
+        super().__init__(("127.0.0.1", 0), CamHandler)
+
+
+class CamHandler(socketserver.StreamRequestHandler):
+    def handle(self):
+        for raw in self.rfile:
+            req = json.loads(raw)
+            if req["cmd"] == "grab":
+                out = __import__("pathlib").Path(req["out"])
+                out.mkdir(parents=True, exist_ok=True)
+                for i in range(req["n"]):
+                    cv2.imwrite(str(out / f"rgb_{i:02d}.png"), np.full((8, 8, 3), (0, 0, 255), np.uint8))
+                reply = {"ok": True, "saved": req["n"]}
+            else:
+                reply = {"ok": True}
+            self.wfile.write((json.dumps(reply) + "\n").encode())
+            self.wfile.flush()
+
+
+def test_camera_server_client(tmp_path):
+    srv = CamStub()
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        cam = RealSenseServer(*srv.server_address, n=4)
+        assert cam.ping()
+        frames = cam()
+        assert len(frames) == 4 and frames[0][0, 0].tolist() == [255, 0, 0]       # BGR on disk -> RGB
+        kept = RealSenseServer(*srv.server_address, n=2, save_dir=tmp_path)
+        kept()
+        assert len(list(tmp_path.glob("*/rgb_*.png"))) == 2                      # bursts kept for later checks
+    finally:
+        srv.shutdown()
+        srv.server_close()
+    dead = RealSenseServer(*srv.server_address, timeout_s=1.0)
+    assert not dead.ping()
+    with pytest.raises(CameraServerError):
+        dead()
+
+
+# corners as picked on 2026-11-22 (toy upside down in the view), scaled up 1.4x about their centre
+_C = np.array([[869, 337], [615, 375], [632, 540], [924, 497]], np.float32)
+CORNERS = (_C - _C.mean(0)) * 1.4 + _C.mean(0)
+
+
+def camera_view(toy: ToyKernel, corners: np.ndarray, rng, n: int = 3) -> list[np.ndarray]:
+    """A burst of 1280x720 frames of the toy's screen seen through the given corners (toy order BL, BR, TR, TL):
+    faint blurred line (30 grey levels) on a light screen, dark surroundings, sensor noise."""
+    ppm = 10.0
+    w, h = round(153 * ppm), round(107 * ppm)
+    ink = np.zeros((h, w), np.float32)
+    for st in toy.strokes:
+        if len(st.points) > 1:
+            pts = np.array([(x * ppm, (107 - y) * ppm) for x, y in st.points]).round().astype(np.int32)
+            cv2.polylines(ink, [pts], False, 1.0, 6)
+    screen = 165 - 30 * cv2.GaussianBlur(ink, (0, 0), 2.0)
+    M = cv2.getPerspectiveTransform(np.array([[0, h - 1], [w - 1, h - 1], [w - 1, 0], [0, 0]], np.float32),
+                                    np.asarray(corners, np.float32))
+    on = cv2.warpPerspective(np.ones((h, w), np.float32), M, (1280, 720)) > 0.5
+    view = np.where(on, cv2.warpPerspective(screen, M, (1280, 720)), 60.0)
+    out = []
+    for _ in range(n):
+        g = np.clip(view + rng.normal(0, 2.0, view.shape), 0, 255).astype(np.uint8)
+        out.append(np.dstack([g, g, g]))
+    return out
+
+
+def test_corners_mode_tracks_the_pen(rig):
+    _, client = rig
+    toy = ToyKernel(ToyParams(), start_mm=(30.0, 25.0))           # the measured knob k and backlash
+    rng = np.random.default_rng(0)
+    b = RealBackend(client, POSES, camera=lambda: camera_view(toy, CORNERS, rng), corners=CORNERS)
+    assert b.locate_board()                                         # starts the run on the blank screen
+    for ax, deg in [("x", 360.0), ("y", 360.0), ("x", -360.0), ("y", -180.0)]:
+        assert b.grasp_knob(ax)
+        r = b.rotate(deg)
+        toy.turn(ax, r.wrist_deg)                                   # the knob follows the wrist (no slip)
+        pen = b.observe_pen()
+        # 2 mm, not 1: run_tracker reports the line end, which sits past the stylus by part of the line's round
+        # end cap in the direction of travel (1.0-1.6 mm here, every step measured, none predicted). Only the
+        # calibration fit removes that bias today (turn_measure.fit_session).
+        assert np.hypot(*np.subtract(pen, toy.stylus)) < 2.0, (ax, deg, pen, toy.stylus)
+
+
+def test_corners_missing_is_reported(rig):
+    _, client = rig
+    b = RealBackend(client, POSES, camera=lambda: np.zeros((720, 1280, 3), np.uint8))
+    b.corners = None                                                # as if never picked
+    with pytest.raises(RuntimeError, match="analyze_sketch.py --pick"):
+        b.observe_pen()

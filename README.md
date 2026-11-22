@@ -126,7 +126,8 @@ are taught with `scripts/teach_pose.py` into `hardware/taught_poses.json`.
 | `turn_measure.py` | Full-turn calibration plan and fit; line-end helpers |
 | `run_tracker.py` | Pen tracking over a whole run (real camera): ignores lines from before the run, lines that later disappear, and lines where the pen cannot be |
 | `mj/` | 6-DoF Gen3 generated from Kinova's xacro, toy model, scene, IK, MuJoCo skills backend |
-| `real/backend.py` | Client of the aims-kinova motion server |
+| `real/backend.py` | Client of the aims-kinova motion server; scene camera through clicked corners or ArUco |
+| `real/camera.py` | Client of the RealSense camera server (`scripts/rs_server.py`): a burst of frames per capture |
 
 `hardware/` holds the measurement template, taught-pose template and the scene camera's screen corners.
 
