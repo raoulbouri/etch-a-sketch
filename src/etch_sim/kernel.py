@@ -44,8 +44,10 @@ class AxisParams:
 
 @dataclass
 class ToyParams:
-    x: AxisParams = field(default_factory=lambda: AxisParams(travel_mm=153.0))
-    y: AxisParams = field(default_factory=lambda: AxisParams(travel_mm=107.0))
+    # k and backlash: hand full turns 2026-11-22 (test_images/calib/20261122-140755_x, -141546_y; hardware/phase0_measurements.yaml).
+    # Hand runs give only the total half backlash (x 10.6, y 8.4 deg, +-8 deg); half_dead_deg = that minus the PLACEHOLDER transition.
+    x: AxisParams = field(default_factory=lambda: AxisParams(k_mm_per_deg=0.0951, half_dead_deg=6.1, travel_mm=153.0))  # 34.2 mm/turn, rms 0.22 mm
+    y: AxisParams = field(default_factory=lambda: AxisParams(k_mm_per_deg=0.1001, half_dead_deg=3.9, travel_mm=107.0))  # 36.1 mm/turn, rms 0.77 mm
     line_width_mm: float = 0.6
     snap_strain_deg: float = 180.0   # PLACEHOLDER: knob rotation into an end stop before the string snaps
     # Erase proxy (PLACEHOLDER, fit to the Phase 0 shake test): while inverted,

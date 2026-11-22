@@ -7,12 +7,12 @@ toy:
   knob_centre_spacing_mm: null
   mass_g: null
   sign_convention:                 # turn each knob clockwise seen from the front: which way does the pen go?
-    left_knob_cw_moves: null       # right / left
-    right_knob_cw_moves: null      # up / down
+    left_knob_cw_moves: right       # right / left
+    right_knob_cw_moves: up      # up / down
 
 knob:                              # per axis: sweep by hand or arm, log to CSV, run scripts/fit_hand_measurements.py
-  x: {k_mm_per_deg: null, delta_deg: null, fit_rms_mm: null, turns_across_screen: null}
-  y: {k_mm_per_deg: null, delta_deg: null, fit_rms_mm: null, turns_across_screen: null}
+  x: {k_mm_per_deg: 0.09507, delta_deg: 10.57, fit_rms_mm: 0.224, turns_across_screen: 4.47}   # hand full turns 2026-11-22: backlash 21.13 deg
+  y: {k_mm_per_deg: 0.10014, delta_deg: 8.4, fit_rms_mm: 0.765, turns_across_screen: 2.97}   # hand full turns 2026-11-22: backlash 16.81 deg
   dead_zone_varies_near_edges: null
 
 grasp:

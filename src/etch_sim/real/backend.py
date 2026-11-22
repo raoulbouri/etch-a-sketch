@@ -21,6 +21,8 @@ import numpy as np
 from PIL import Image
 
 from .. import perception as P
+from .. import run_tracker as R
+from .. import sketch_extract as S
 from ..interface import Axis, EraseResult, RotateResult
 from ..mj.toy_model import ToyGeometry
 
@@ -82,8 +84,11 @@ class RealBackend:
         self.n_switches = 0
         self.held: Axis | None = None
         self._last_axis: Axis | None = None
-        self._tracker = P.PenTracker()
-        self._moves: list[tuple[str, float]] = []
+        # one run = from the first board sighting until the next erase (run_tracker rules 1-3)
+        self._track_p = R.TrackParams()
+        self._tracker = R.RunTracker(R.knobs_from_toy(), self._track_p)
+        self._run_started = False
+        self._moves: list[tuple[str, float]] = []           # (axis, knob degrees) since the last observation
         self._theta_z = float(self.c.call("status")["state"]["tool_pose"]["theta_z"])
         self._t0 = time.time()
         self.log: list[dict] = []
@@ -132,7 +137,7 @@ class RealBackend:
         r = self.c.call("rotate", deg=deg * sign, speed=self.poses.get("knob_speed_dps"))
         self._theta_z = float(r["tool_pose"]["theta_z"])
         wrist = float(r["rotated_deg"]) / sign
-        self._moves.append((self.held, 1.0 if deg > 0 else -1.0))
+        self._moves.append((self.held, wrist))               # what the wrist turned; the knob may have slipped
         self.log.append({"t": self.clock_s, "skill": "rotate", "axis": self.held, "deg": deg, "wrist_deg": wrist})
         return RotateResult(deg, wrist)
 
@@ -160,18 +165,34 @@ class RealBackend:
         H = P.board_homography(P.detect_markers(img), self.g)
         return None if H is None else P.rectify(img, H, self.g)
 
+    def _lines(self, rect: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Line mask (real-image extraction) and the pixels the camera can judge."""
+        ex = S.extract(rect, None, S.ExtractParams())
+        return ex.mask, R.visible_from(ex.flat, ex.unknown, self._track_p)
+
     def locate_board(self) -> bool:
-        """True if the scene camera sees enough markers to measure in the screen frame."""
-        return self.rectified() is not None
+        """True if the scene camera sees enough markers to measure in the screen frame. The first sighting
+        starts the run: what is on the screen then is never taken for the pen's line."""
+        rect = self.rectified()
+        if rect is not None and not self._run_started:
+            self._tracker.start(self._lines(rect)[0])
+            self._run_started, self._moves = True, []
+        return rect is not None
 
     def observe_pen(self) -> tuple[float, float]:
         rect = self.rectified()
         if rect is not None:
-            self._tracker.update(rect, self._moves)
+            mask, vis = self._lines(rect)
+            if not self._run_started:
+                self._tracker.start(mask)
+                self._run_started = True
+            else:
+                self._tracker.update(mask, self._moves, vis)
             self._moves = []
-        pen = self._tracker.pen
+        pen = self._tracker.pen_mm
         self.log.append({"t": self.clock_s, "skill": "observe_pen", "pen": pen})
         return pen if pen is not None else (float("nan"), float("nan"))
 
     def erase(self, peak_accel_ms2: float = 9.0, duration_s: float = 30.0) -> EraseResult:
+        # When built: an erase ends the run; set self._run_started = False so the next board sighting starts a new one.
         raise NotImplementedError("erase on the arm is a separate routine with its own approval; not built yet")

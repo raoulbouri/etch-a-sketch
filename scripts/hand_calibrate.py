@@ -33,6 +33,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from etch_sim import run_tracker as R
 from etch_sim import sketch_extract as S
 from etch_sim import turn_measure as T
 
@@ -74,9 +75,11 @@ def capture(out: Path) -> None:
         raise RuntimeError(f"capture failed: {r.get('error')}")
 
 
-def mask_of(step_dir: Path, corners: np.ndarray, p: S.ExtractParams) -> np.ndarray:
+def mask_of(step_dir: Path, corners: np.ndarray, p: S.ExtractParams, tp: R.TrackParams) -> tuple[np.ndarray, np.ndarray]:
+    """Line mask and the pixels the camera could judge (not glare, not under a hand or shadow)."""
     frames = [cv2.cvtColor(cv2.imread(str(f)), cv2.COLOR_BGR2RGB) for f in sorted(step_dir.glob("rgb_*.png"))]
-    return S.extract(frames, corners, p).mask
+    ex = S.extract(frames, corners, p)
+    return ex.mask, R.visible_from(ex.flat, ex.unknown, tp)
 
 
 def load_corners() -> tuple[np.ndarray, S.ExtractParams]:
@@ -129,6 +132,11 @@ def main() -> None:
     if a.replay:
         meta = json.loads((a.replay / "session.json").read_text())
         axis, plan, session, live = meta["axis"], [tuple(x) for x in meta["plan"]], a.replay, False
+        if "corners_px" in meta:                       # the corners the session was taken with
+            corners, p = np.array(meta["corners_px"], np.float32), S.ExtractParams(toy_order=True)
+        else:
+            print("  (old session: no corners saved with it; using the current hardware/scene_camera_screen.json)")
+        a.flip = meta.get("flip", a.flip)
     else:
         if not a.axis:
             ap.error("give the knob to calibrate: x or y")
@@ -137,15 +145,18 @@ def main() -> None:
         check_server()
         session = CALIB / f"{time.strftime('%Y%m%d-%H%M%S')}_{axis}"
         session.mkdir(parents=True)
-        (session / "session.json").write_text(json.dumps({"axis": axis, "plan": plan}, indent=1))
+        (session / "session.json").write_text(json.dumps(
+            {"axis": axis, "plan": plan, "flip": a.flip, "corners_px": np.asarray(corners).tolist()}, indent=1))
         print(f"Calibrating the {KNOB[axis]}: {len(plan)} turns. Session folder: {session.relative_to(ROOT)}")
         print("Erase the screen and put the pen ~1.5 cm from the bottom-left corner (knobs toward you).")
         input("Press Enter to take the starting capture... ")
         capture(session / "step_00")
 
-    track = T.PenTrack(px_per_mm=p.px_per_mm)
-    track.update(mask_of(session / "step_00", corners, p))
-    results: list = []
+    # one session = one run: rules 1-3 of run_tracker, with a loose length check (this measures k)
+    tp = R.TrackParams(px_per_mm=p.px_per_mm, **R.CALIBRATION)
+    track = R.RunTracker(R.knobs_from_toy(signs={ax: -1 for ax in a.flip}), tp)
+    track.start(mask_of(session / "step_00", corners, p, tp)[0])
+    masks, live_pens = [], []
     for i, (ax, d) in enumerate(plan, start=1):
         step = session / f"step_{i:02d}"
         if live:
@@ -164,13 +175,14 @@ def main() -> None:
         elif not step.exists():
             plan = plan[: i - 1]
             break
-        mask = mask_of(step, corners, p)
-        r = track.update(mask)
-        if r["resolved_prev_pen_mm"] is not None and results:
-            results[-1]["pen_mm"] = r["resolved_prev_pen_mm"]
-        results.append(r)
+        mask, vis = mask_of(step, corners, p, tp)
+        masks.append(mask)
+        r = track.update(mask, [(ax, 360.0 * d)], vis)
+        live_pens.append(r["pen_mm"])
         save_overlay(step, mask, r["pen_mm"])
-        msg = f"  new line {r['stroke_mm']} mm along {r['stroke_axis']}" if r["stroke_mm"] else "  NO new line found"
+        msg = f"  new line {r['stroke_mm']} mm along {r['stroke_axis']}" if r["stroke_mm"] else "  NO new line found at the pen"
+        if r["rejected"]:
+            msg += f" (line at the pen rejected: {r['rejected']})"
         if live and i <= 2 and (not r["stroke_mm"] or r["stroke_mm"] < 10):
             msg += (f"\n  The pen barely moved: it may be against the edge. If clockwise moves it left/down on your"
                     f" toy, press q, erase, and rerun with --flip {ax}.")
@@ -183,6 +195,12 @@ def main() -> None:
                 msg += "  WARNING: pen within 8 mm of the edge (end stop ahead; points within 4 mm are not used)"
         print(msg)
 
+    results = track.public_results()                   # final: estimates revised if a line later disappeared
+    revised = [i for i, (r, was) in enumerate(zip(results, live_pens), start=1) if r["pen_mm"] != was]
+    for i in revised:
+        save_overlay(session / f"step_{i:02d}", masks[i - 1], results[i - 1]["pen_mm"])
+    if revised:
+        print(f"   steps {revised}: pen re-measured after a line there disappeared (shadow or reflection)")
     (session / "results.json").write_text(json.dumps({"plan": plan, "results": results}, indent=1))
     if sum(1 for (ax, _), r in zip(plan, results) if ax == axis and r["pen_mm"]) < 4:
         sys.exit("too few measured turns to fit")

@@ -123,7 +123,8 @@ are taught with `scripts/teach_pose.py` into `hardware/taught_poses.json`.
 | `calibration.py`, `draw.py`, `scoring.py` | Back-and-forth calibration sweep and fit; open-loop drawer; chamfer score |
 | `perception.py` | ArUco board localisation, rectification, line mask and pen tracking (simulation) |
 | `sketch_extract.py` | Line extraction for real camera images |
-| `turn_measure.py` | Pen position after each turn from before/after line masks; full-turn calibration fit |
+| `turn_measure.py` | Full-turn calibration plan and fit; line-end helpers |
+| `run_tracker.py` | Pen tracking over a whole run (real camera): ignores lines from before the run, lines that later disappear, and lines where the pen cannot be |
 | `mj/` | 6-DoF Gen3 generated from Kinova's xacro, toy model, scene, IK, MuJoCo skills backend |
 | `real/backend.py` | Client of the aims-kinova motion server |
 

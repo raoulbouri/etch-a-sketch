@@ -16,7 +16,9 @@ newest first, timestamped from the system clock).
 ### Environment
 - macOS, `uv`, Python 3.12, MuJoCo 4.0.0, OpenCV 5.0.0 (ArUco is in the main package). Offscreen rendering works
   with no extra setup. (verified 2026-11-09)
-- Git repo initialised locally, nothing committed, no remote. (verified 2026-11-09)
+- Repo on github.com/raoulbouri/etch-a-sketch; work on `dev` (rule 14). (verified 2026-11-22)
+- Camera laptop: Ubuntu 22.04 (kernel 6.8), `uv sync --group realsense` (pyrealsense2 2.59.1); the D435 streams without
+  Intel's udev rules; `MUJOCO_GL=egl uv run pytest -q` passes. (verified 2026-11-22)
 
 ### Arm model
 - MuJoCo Menagerie has only the 7-DoF Gen3. Our 6-DoF model is generated at load time from Kinova's xacro
@@ -34,8 +36,8 @@ newest first, timestamped from the system clock).
 
 ### Toy and scene
 - All toy numbers are PLACEHOLDERS: body 229 x 187 x 40 mm, screen 153 x 107 mm, knob radius 14 mm at (+-90, -68) mm,
-  knob friction 0.03 Nm, mm per degree 0.085, dead zone 9 deg half + 4.5 deg transition, clockwise = positive,
-  erase model, switch time 8 s. Record real values in `hardware/phase0_measurements.yaml`.
+  knob friction 0.03 Nm, transition 4.5 deg, clockwise = positive, erase model, switch time 8 s, except the measured
+  knob k and backlash below (`ToyParams` defaults). Record real values in `hardware/phase0_measurements.yaml`.
 - The screen is not simulated by MuJoCo: knob joint angles drive the toy kernel, and the kernel's picture is
   uploaded into the screen texture (`EtchScene.sync_toy`). Texture row 0 is the top of the screen.
 - Toy lies flat at world (0.45, 0, 0), knob edge towards the robot. Both knobs are reachable tool-down.
@@ -114,10 +116,22 @@ newest first, timestamped from the system clock).
 - librealsense on macOS froze the Mac 3 times (kills macOS camera services); `rs_capture.sh` refuses on macOS
   (CLAUDE.md rule 15). Camera work runs on a teammate's Linux laptop: `uv sync --group realsense`.
 - Raoul's toy, seen from the knob side: left knob cw = pen right, right knob cw = pen up (default plan, no --flip).
-- Knob mm/deg and backlash: NOT measured yet. Procedure: README "Knob calibration by hand" (`hand_calibrate.py
-  x --save`, then `y --save`, with `rs_capture.sh serve` running). Results land in hardware/phase0_measurements.yaml;
-  then update `AxisParams` defaults and this section (rule 5). Hand accuracy: k ~1%, backlash ~5-8 deg.
-- hardware/scene_camera_screen.json holds corners for the Mac-era colour view; re-pick on the new setup.
+- Knob calibration by hand (README procedure), Raoul's toy, in the frame of the visible screen (verified 2026-11-22):
+  left knob (x) 34.2 mm/turn = k 0.0951 mm/deg, backlash 21 deg (likely 20-30), rms 0.22 mm (calib/20261122-140755_x);
+  right knob (y) 36.1 mm/turn = k 0.1001 mm/deg, backlash 17 deg (likely 15-25), rms 0.77 mm (calib/20261122-141546_y).
+  k to ~1%; backlash +-8 deg (hand turns). In phase0_measurements.yaml and the `ToyParams` defaults.
+- The 5% x/y difference in k may be a scale error: mm come from the PLACEHOLDER 153 x 107 mm screen. Measure the visible
+  screen with a ruler and rescale k if it differs.
+- End stops seen: left x ~3 mm, bottom y ~0-3 mm (under the frame lip / edge strip), right x >= 150 mm, top y ~104-105 mm.
+- Session lessons: re-pick corners after every erase (lifting the toy moved it 3-12 mm); start the pen 15-20 mm in from
+  both edges (a corner start puts row 1 in the ignored edge strip); the first turn off an end stop is mostly slack;
+  the overhead light makes a diagonal band on the left that gives false short lines. Toy is not fixed to the table.
+- Pen tracking on real images: `run_tracker.RunTracker` (one run = until the next erase): ignores lines from before the
+  run, drops line that later disappears while visible (per pixel, 2 captures), accepts new line only where the turn
+  puts the pen (k, backlash, direction). Used by hand_calibrate.py and RealBackend; MuJoCo still uses
+  perception.PenTracker. Tolerances are PLACEHOLDER, set on the 2026-11-22 captures; rule 2 vs the arm hiding lines is
+  untested until the arm draws. (verified 2026-11-22)
+- Current camera pose: toy ~1.67 px/mm, corners in hardware/scene_camera_screen.json (capture 20261122-141512).
 
 ### Open decisions
 - Decided 2026-11-09: bounded-routine approval (a person approves one envelope at the motion server); chunked
@@ -128,6 +142,64 @@ newest first, timestamped from the system clock).
 
 ## Log
 
+### 2026-11-22 14:42 EST | Yashasvi Sorapalli (+ Claude)
+- Added `src/etch_sim/run_tracker.py` (Yashasvi's three rules for a whole run) and `tests/test_run_tracker.py` (6 tests);
+  hand_calibrate.py and RealBackend.observe_pen use it (RealBackend now on sketch_extract masks, records wrist degrees).
+  session.json now stores the corners and --flip used, so --replay of a later session uses its own corners. 29 tests pass.
+- Replays (copies, with each session's own corners): x7 34.27 mm/turn (was 34.22), backlash 24.1 (21.1), 8 turns (step 1
+  was at the wrong line end before); y 36.05 (same), backlash 18.5 (16.8). Bad sessions: x1 refused, x2 2 turns only,
+  x6 34.4 mm/turn with the top-edge steps not found. Saved yaml / ToyParams values kept (differences within +-8 deg).
+- Tuned on real masks: start_tol 3.5 mm (lines 1.5-2 mm wide), present_tol 1.0 mm (>1 camera px). Cost: a shadow
+  touching a line end can leave ~1 mm of itself. Not done: MuJoCo backend, Skills start/end-run (decision B).
+### 2026-11-22 14:19 EST | Yashasvi Sorapalli (+ Claude)
+- Toy moved ~3-6 mm when lifted to erase; corners re-picked on 20261122-141512 (blank screen: 0 false lines).
+- y session (test_images/calib/20261122-141546_y): clean, tracker on the line end at every step. Fit k 0.10014 mm/deg
+  (36.05 mm/turn), backlash 16.8 deg (delta 8.4), rms 0.765 mm, 7 turns used, right knob cw = up. Saved to the yaml.
+- Checks: same-direction turns 36.0, 34.75, 35.75, 36.25 mm (mean 35.7, k ~0.099); reversals lost ~0.7, 2.5, 3.0 mm
+  (~7-30 deg). One overshoot estimate (-1.5 mm) used a connector at y 5.75 mm near the cut and is suspect.
+- y k is ~5% above x k: real, or a screen-size error (scale assumes PLACEHOLDER 153 x 107 mm). Needs a ruler check.
+  Camera server stopped. AxisParams / Facts updates proposed in chat, not applied.
+### 2026-11-22 14:12 EST | Yashasvi Sorapalli (+ Claude)
+- Corners re-picked on capture 20261122-140501 (erased screen). x session 7 (test_images/calib/20261122-140755_x) is the
+  first clean x run: rows at y 5.8, 40.5, 76 mm, tracker on the line end at every step, fit k 0.09507 mm/deg (34.22 mm/turn),
+  backlash 21.1 deg (delta 10.57), rms 0.224 mm, 7 turns used, cw = right. `--save` values kept in phase0_measurements.yaml.
+- Checks: same-direction turns 35.0, 34.5, 34.0, 34.7, 34.0 mm (mean 34.4); reversals lost ~2.9 and ~2.4 mm (~25-30 deg if the
+  end-cap bias is ~0), so backlash is ~20-30 deg (hand accuracy). Steps 1-2 split one turn unevenly (~20 + ~49 mm; pen started
+  at x ~3 mm); their sum is right. Row 1 at y 5.8 mm is close to the 4 mm cut. Next: y session.
+### 2026-11-22 14:02 EST | Yashasvi Sorapalli (+ Claude)
+- Toy shifted twice more (4 px, then ~20 px); corners re-picked on capture 20261122-134903 (1.67 px/mm). Toy is not fixed down.
+- x session 6 (test_images/calib/20261122-135447_x): steps 1-8 good, rows at y 40 and 76 mm. Step 5 is corrupt (Yashasvi turned
+  cw to the right stop, then ccw). Steps 9-11 ran along the top edge (pen at y ~104 after step 8) and are lost. Session fit
+  (k 0.0639, rms 27.9 mm) is invalid; yaml reverted.
+- Left knob, from same-direction steps (end-cap bias cancels): cw 35.0, 35.0; ccw 34.75, 33.75 mm/turn -> 34.6 mm/turn,
+  k ~0.096 mm/deg (+-1%, on the PLACEHOLDER 153 x 107 mm screen size). Repo fit_session on steps 1-8: k 0.0956, rms 0.28 mm.
+  Backlash NOT measured (the only reversal is step 5). Stops: right >= 150 mm, top ~104-105 mm (visible-screen frame).
+### 2026-11-22 13:11 EST | Yashasvi Sorapalli (+ Claude)
+- Toy moved closer; corners re-picked on capture 20261122-130028: 1.69 px/mm, the light's white streak is off the screen.
+  Drawn rows are now strong and continuous. A diagonal light band on the left third still gives false short lines.
+- x session 2 (test_images/calib/20261122-130548_x): fit INVALID again (k 0.0899, backlash 1354 deg, tip bias -61 mm);
+  yaml values reverted. Causes: row 1 again ran along the bottom edge (pen started at y ~0, x ~0-5 mm, not 15 mm in),
+  so it is invisible; row 2 ran into the left end stop; the tracker picked clutter or the wrong line end on steps 1-3, 6, 8, 9.
+- By eye from line ends, 6 clean turns: 32.5-34.5 mm/turn, ~33 mm/turn = ~0.092 mm/deg (about 2-3%). Backlash not measurable
+  from this run. Left knob cw = pen right confirmed.
+### 2026-11-22 12:47 EST | Yashasvi Sorapalli (+ Claude)
+- Correction to 12:41: the "old vertical line" is a reflection of the overhead light, not a drawn line (Yashasvi).
+- Why sketch_extract marks it as line: it peaks at ~200 grey, under the 245 glare threshold, so it is not masked; the
+  bicubic upsampling (1.35 -> 4 px/mm) rings beside its sharp edge, a 4-6 level dark undershoot absent in the raw
+  image, which the two-sided dip test accepts as a line. Drawn rows are only 1-5 levels deep (1-3%) and fade out where the
+  light brightens the screen (grey ~160 vs ~140), which explains the gaps. Normalising by background is multiplicative;
+  reflected light adds to line and screen alike. No code changed.
+### 2026-11-22 12:41 EST | Yashasvi Sorapalli (+ Claude)
+- New camera pose: corners re-picked on capture 20261122-123203 (screen ~207-242 px wide, 1.35 px/mm). Grab and serve
+  work on Linux without Intel's udev rules.
+- First x session (test_images/calib/20261122-123517_x) is INVALID: an old vertical line was not erased, and the pen
+  started ~2.5 mm from the bottom edge, so row 1 (3 cw turns) left no visible line; the tracker then jumped to specks and
+  to crossings with the old line. Fit used 3 turns: k 0.121 mm/deg, backlash 194 deg (nonsense). The yaml values
+  `--save` wrote were reverted. By eye from the masks, two clean cw turns span ~68 mm (~34 mm/turn); not a measurement.
+### 2026-11-22 12:30 EST | Yashasvi Sorapalli (+ Claude)
+- Linux laptop setup for the hand knob calibration (Ubuntu 22.04, kernel 6.8): `dev` checked out, `uv sync --group
+  realsense` (pyrealsense2 2.59.1), `MUJOCO_GL=egl uv run pytest -q`: 23 pass. D435 (fw 5.17.0.10, USB 2.1) is listed
+  by pyrealsense2 without Intel's udev rules installed. Next: grab, corner pick, then `hand_calibrate.py x` and `y`.
 ### 2026-11-12 18:37 EST | Raoul Bouri (+ Claude)
 - Reverted the macOS AVFoundation camera path (avcam.py, cam_grab.py removed; imageio-ffmpeg back to dev deps).
   Back to librealsense, but on Linux only: Raoul or a teammate will calibrate on a non-macOS laptop.
