@@ -48,6 +48,7 @@ Simulation (writes to `out/`, which git ignores):
 uv run python scripts/s0_demo.py      # toy kernel: calibrate, erase, draw
 uv run python scripts/s1_demo.py      # MuJoCo scene: cameras, markers, live screen
 uv run python scripts/s2_demo.py      # arm turns the knobs, camera calibration, open-loop square (~30 s)
+uv run python scripts/s3_demo.py      # image -> route planner, drawn on the toy kernel; --image my.png --budget 600
 uv run python scripts/make_video.py   # video of the arm drawing; --shape square|staircase|spiral (~90 s)
 uv run python scripts/fit_hand_measurements.py hardware/x_sweep.csv   # fit mm/deg and backlash from hand data
 ```
@@ -123,6 +124,7 @@ are taught with `scripts/teach_pose.py` into `hardware/taught_poses.json`.
 | `calibration.py`, `draw.py`, `scoring.py` | Back-and-forth calibration sweep and fit; open-loop drawer; chamfer score |
 | `perception.py` | ArUco board localisation, rectification, line mask and pen tracking (simulation) |
 | `sketch_extract.py` | Line extraction for real camera images |
+| `planner.py` | Image to one continuous knob route: grid, joined pieces, retrace, straight-first Euler path, time budget |
 | `turn_measure.py` | Full-turn calibration plan and fit; line-end helpers |
 | `run_tracker.py` | Pen tracking over a whole run (real camera): ignores lines from before the run, lines that later disappear, and lines where the pen cannot be |
 | `mj/` | 6-DoF Gen3 generated from Kinova's xacro, toy model, scene, IK, MuJoCo skills backend |

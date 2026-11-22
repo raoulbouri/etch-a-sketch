@@ -9,7 +9,7 @@ newest first, timestamped from the system clock).
 - Team project, 4 people, 60 h, Nov 10 to Nov 30 2026. Proposal phases P0 to P4 with gates; sim stages S0 to S5
   run alongside. Proposal PDF: `etch_a_sketch_feasibility_plan.pdf` (not in the repo).
 - Stages done: S0 (toy kernel), S1 (MuJoCo scene), S2 (arm skills in MuJoCo, pen tracking, calibration through the
-  camera). Not started: real-arm backend, erase in MuJoCo, image-to-route planner, closed loop, agent. (verified 2026-11-09)
+  camera), S3 (image-to-route planner, toy kernel only). Not started: erase in MuJoCo, closed loop, agent. (verified 2026-11-22)
 - Hardware: Kinova Gen3 6-DoF + Robotiq 2F-85 + wrist camera at AIMS (green arm). Real-arm code and rules live in
   the `aims-kinova` repo. No hardware Phase 0 measurement has been taken yet. (verified 2026-11-09)
 
@@ -133,6 +133,18 @@ newest first, timestamped from the system clock).
   untested until the arm draws. (verified 2026-11-22)
 - Current camera pose: toy ~1.67 px/mm, corners in hardware/scene_camera_screen.json (capture 20261122-141512).
 
+### S3 planner (`src/etch_sim/planner.py`, kernel only) (verified 2026-11-22)
+- `plan_route(image, PlanParams, pen_mm)` -> `Route(moves, start_mm, polyline, target_mm, stats)`; `plan_for_budget` picks the
+  smallest staircase tolerance that fits a time budget. Grid pitch 2 mm, margin 8 mm, default tol 1.5 x pitch.
+- Pen never lifts: separate pieces and the pen are joined by an MST of shortest L connectors; a Chinese-postman retrace
+  (greedy matching) makes one open path from the pen; Euler path prefers going straight to save knob switches.
+- Tolerance is the lever, not pitch: circle at 2 mm pitch, tol 0 -> 109 switches (~17 min), tol 3 mm -> 36 (~7 min,
+  1.2 mm mean error); tol below one pitch does nothing. 4 mm pitch at tol 0 still needs 51.
+- s3_demo at 600 s budget: house/circle/heart/3 pieces in 6.3-9.1 min est (kernel clock within 3%), picture->route
+  1.1-1.6 mm, drawn vs plan 0.12-0.13 mm chamfer with true k/backlash. Timing PLACEHOLDERS (switch 8 s, 30 deg/s).
+- Known cost: connectors join mid-line (T-junctions), so pieces force retrace (3 pieces: 200 mm). Joining at loose
+  ends would cut it. Route->picture includes connector ink, so it is reported, not checked.
+
 ### Open decisions
 - Decided 2026-11-09: bounded-routine approval (a person approves one envelope at the motion server); chunked
   joint 6 moves; a motion server in aims-kinova with etch-sim as client.
@@ -142,6 +154,10 @@ newest first, timestamped from the system clock).
 
 ## Log
 
+### 2026-11-22 17:53 EST | Andrew Haggstrom (+ Claude)
+- Added S3: `src/etch_sim/planner.py` (image -> one continuous Manhattan route), `scripts/s3_demo.py`, `tests/test_planner.py`
+  (9 tests). Exit check passes; full suite passes. Kernel only, not run in MuJoCo or on the arm.
+- Next: join pieces at loose ends to cut retrace; try real line-art / LLM-generated pictures; MuJoCo run of a planned route.
 ### 2026-11-22 14:42 EST | Yashasvi Sorapalli (+ Claude)
 - Added `src/etch_sim/run_tracker.py` (Yashasvi's three rules for a whole run) and `tests/test_run_tracker.py` (6 tests);
   hand_calibrate.py and RealBackend.observe_pen use it (RealBackend now on sketch_extract masks, records wrist degrees).
