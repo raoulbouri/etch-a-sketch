@@ -163,8 +163,11 @@ newest first, timestamped from the system clock).
   with JOINT_CONSTRAINT_SPEED: ACTION_ABORT, abort_details 1 (METHOD_FAILED) even in the air; the same joint targets via
   move_joints worked. Fix: JOINT_CONSTRAINT_DURATION = |chunk| / speed, min 1 s (patch on etch-bounded-routine, applied
   locally on Harish's laptop, NOT yet reviewed or pushed by Raoul): 10.05 deg in the air, OK. (2) After a grasp the
-  gripper stays stalled short of 'closed' and the next arm action fails (code 1). Fix: RealBackend.grasp_knob retargets
-  the gripper to its stalled position ("hold"): rotate 10.06 deg with the knob held, OK.
+  gripper stays stalled short of 'closed' and the next arm action fails (code 1). Retargeting the gripper to its stalled
+  position did NOT fix it (failed in knob_dry_run); a Base.Stop() did (`kinova stop` from another session, then rotate
+  -10 deg with the knob held: OK, grip kept). Fix: aims-kinova motion.gripper calls Base.Stop() on a stall (patch
+  gripper-stall-stop, local only, for Raoul). An earlier "hold" success only worked because the routine's abort Stop
+  and a server restart came before it.
 - Joint-6 sign: joint 6 +10 deg turned the x knob counter-clockwise seen from above, so knob clockwise = j6 negative;
   j6_deg_per_knob_deg x = -1 verified (y not yet checked). Gripper stalls on the x knob at 0.703-0.712.
 - The pen is at the screen's bottom-left end stop after the session: do not turn the x knob counter-clockwise or the
@@ -180,6 +183,13 @@ newest first, timestamped from the system clock).
 - Which LLM API for the agent.
 
 ## Log
+
+### 2026-11-22 20:17 EST | Harish Bhamitipadi Magesh (+ Claude)
+- Correction to 20:03: holding the gripper at its stalled position does not stop the rotate abort. Test: grasp
+  (stall + hold) -> `kinova stop` from a second session -> rotate -10 deg worked, knob turned clockwise with the wrist.
+  So Base.Stop() ends the stalled gripper command and the grip stays. Fix moved to aims-kinova motion.gripper (stop on
+  stall, 2 offline tests; local patch for Raoul). RealBackend hold removed again; 35 tests pass.
+- Joint-6 sign confirmed twice for the x knob: j6 -10 deg = clockwise.
 
 ### 2026-11-22 20:03 EST | Harish Bhamitipadi Magesh (+ Claude)
 - Rotate on the real arm diagnosed with in-air tests: move_joints (no constraint) turns joint 6, the server's rotate

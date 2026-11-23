@@ -110,10 +110,3 @@ def test_refusal_reports_the_arms_abort_details(rig):
     with pytest.raises(ArmRefused, match=r"abort_details.*18.*ROBOT_MOVEMENT_IN_PROGRESS"):
         b.grasp_knob("x")
 
-
-def test_grasp_holds_the_gripper_where_it_stalled(rig):
-    srv, client = rig
-    b = RealBackend(client, POSES)
-    assert b.grasp_knob("x")
-    grips = [c["position"] for c in srv.calls if c["cmd"] == "gripper"]
-    assert grips[-2:] == [POSES["gripper"]["closed"], pytest.approx(0.62)]     # close, then hold at the stall

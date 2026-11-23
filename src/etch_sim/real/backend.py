@@ -131,10 +131,9 @@ class RealBackend:
             self.c.call("gripper", position=grip["pre"])
             self._move(knob["above"])
             return False
-        # Hold where the fingers stopped. Left stalled short of 'closed', the gripper command stays active and the
-        # arm fails the next arm action (rotate: ACTION_ABORT, abort_details 1, blue arm 2026-11-22); retargeting the
-        # gripper to its stalled position ends that command and the rotation then works.
-        self.c.call("gripper", position=r["position"])
+        # A stall leaves the gripper command running, and the arm then fails the next action (rotate: ACTION_ABORT,
+        # abort_details 1, blue arm 2026-11-22). The motion server's gripper ends a stalled command with Base.Stop()
+        # (aims-kinova patch gripper-stall-stop); retargeting the gripper from here did not help.
         self.held = axis
         return True
 
