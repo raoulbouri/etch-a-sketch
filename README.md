@@ -114,6 +114,11 @@ Real arm: all motion goes through the motion server in the aims-kinova repo, ins
 person approves when starting it. A refused or failed motion raises `ArmRefused`; nothing retries. Knob poses
 are taught with `scripts/teach_pose.py` into `hardware/taught_poses.json`, or computed from two readings taken with the
 gripper closed on each knob in Cartesian admittance: `uv run python scripts/knob_poses.py x.json y.json [--write]`.
+Base test (draw a shape open loop, k and backlash from the hand calibration):
+`uv run python scripts/draw_shapes.py square --size 30 --start 36,16 [--plan] [--pause]`, where `--start` is the
+pen's position in mm from the screen's left and bottom edges; shapes that would reach within 5 mm of an end stop are
+refused. Shapes: square, rectangle, triangle (staircase), circle (staircase through a circle).
+`picture --image house|circle|heart|pieces|file.png --budget 600` draws a planned route (S3 planner) from the pen.
 
 ## Code layout
 

@@ -194,6 +194,13 @@ newest first, timestamped from the system clock).
 
 ## Log
 
+### 2026-11-22 20:58 EST | Harish Bhamitipadi Magesh (+ Claude)
+- Merged dev (Andrew's S3 planner) into harish/knob-poses; MEMORY conflict = both sides kept. 51 tests pass.
+- draw_shapes.py `picture --image ... --budget`: plan_for_budget from the pen with real-arm timing (switch 10 s,
+  15 dps, ToyParams calib). House at 600 s: tol 3 mm, 28 switches, ~9.9 min est; fake-server end to end OK.
+- For the planner's timing PLACEHOLDERS (switch 8 s, 30 dps): blue arm measured ~10 s per switch (release + grasp,
+  from knob_dry_run logs) and 15 dps max (30 deg in 1 s is refused).
+
 ### 2026-11-22 20:53 EST | Harish Bhamitipadi Magesh (+ Claude)
 - Both knobs drive the pen on the real arm at 15 dps: x:180 -> ~15 mm right (by eye; model 0.0951 x (180 - 2x6.1)
   = 16 mm), y:180 -> ~16 mm up (model ~17 mm). y joint-6 sign -1 confirmed (pen moved off the bottom stop).

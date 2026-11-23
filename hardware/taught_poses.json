@@ -51,5 +51,5 @@
   "knob_speed_dps": 15.0,
   "_knob_speed_source": "blue arm 2026-11-22: a 30 deg wrist turn in 1 s (30 dps, the server's 1 s minimum per chunk) is refused (ACTION_ABORT, abort_details 1, no motion); 10 deg in 1 s and 30 deg in 2 s (15 dps) work. The limit lies between 15 and 30 dps average; not narrowed further.",
   "_knobs_source": "computed by scripts/knob_poses.py on 2026-11-22 19:05 from x_closed.json, y_closed.json: spacing 196.6 mm, toy yaw +21.5 deg, lift 0.05 m",
-  "_j6_sign_source": "x knob: joint 6 +10 deg turned the knob counter-clockwise seen from above (blue arm, 2026-11-22), so knob clockwise = joint 6 negative: -1 verified. y knob: not yet checked (same tool orientation, expected -1)."
+  "_j6_sign_source": "x knob: joint 6 +10 deg turned the knob counter-clockwise seen from above (blue arm, 2026-11-22), so knob clockwise = joint 6 negative: -1 verified. y knob: -1 verified (y +180 deg moved the pen ~16 mm up off the bottom stop, 2026-11-22)."
 }
