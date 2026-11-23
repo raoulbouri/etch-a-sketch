@@ -49,5 +49,6 @@
     "y": -1.0
   },
   "knob_speed_dps": 30.0,
-  "_knobs_source": "computed by scripts/knob_poses.py on 2026-11-22 19:05 from x_closed.json, y_closed.json: spacing 196.6 mm, toy yaw +21.5 deg, lift 0.05 m"
+  "_knobs_source": "computed by scripts/knob_poses.py on 2026-11-22 19:05 from x_closed.json, y_closed.json: spacing 196.6 mm, toy yaw +21.5 deg, lift 0.05 m",
+  "_j6_sign_source": "x knob: joint 6 +10 deg turned the knob counter-clockwise seen from above (blue arm, 2026-11-22), so knob clockwise = joint 6 negative: -1 verified. y knob: not yet checked (same tool orientation, expected -1)."
 }

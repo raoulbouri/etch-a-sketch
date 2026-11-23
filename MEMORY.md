@@ -157,9 +157,18 @@ newest first, timestamped from the system clock).
   grasp of the x knob WORKED (computed poses put the fingers around the knob; gripper stalled at 0.712, held). The 30 deg
   rotate came back ACTION_ABORT with nothing moved; a later CLI move-rel aborted with abort_details 18 =
   ROBOT_MOVEMENT_IN_PROGRESS while arm_state was SERVOING_PLAYING_SEQUENCE / SERVOING_MANUALLY_CONTROLLED: the arm
-  refuses API commands while the Web App (admittance/pose panel) or the Xbox pad holds manual control. After admittance
-  was turned off the arm reported SERVOING_READY and move-rel worked. The rotate itself is still untested; whether the
-  abort was manual control or JOINT_CONSTRAINT_SPEED is unknown (its abort_details were not printed then).
+  refuses API commands while the Web App's admittance actually holds the arm. arm_state SERVOING_MANUALLY_CONTROLLED
+  by itself is harmless (any gripper command sets it; move-rel and rotate still work in it).
+- Rotate aborts: TWO causes, both fixed (blue arm, 2026-11-22). (1) aims-kinova rotate_joint sent reach_joint_angles
+  with JOINT_CONSTRAINT_SPEED: ACTION_ABORT, abort_details 1 (METHOD_FAILED) even in the air; the same joint targets via
+  move_joints worked. Fix: JOINT_CONSTRAINT_DURATION = |chunk| / speed, min 1 s (patch on etch-bounded-routine, applied
+  locally on Harish's laptop, NOT yet reviewed or pushed by Raoul): 10.05 deg in the air, OK. (2) After a grasp the
+  gripper stays stalled short of 'closed' and the next arm action fails (code 1). Fix: RealBackend.grasp_knob retargets
+  the gripper to its stalled position ("hold"): rotate 10.06 deg with the knob held, OK.
+- Joint-6 sign: joint 6 +10 deg turned the x knob counter-clockwise seen from above, so knob clockwise = j6 negative;
+  j6_deg_per_knob_deg x = -1 verified (y not yet checked). Gripper stalls on the x knob at 0.703-0.712.
+- The pen is at the screen's bottom-left end stop after the session: do not turn the x knob counter-clockwise or the
+  y knob down until it has moved away (end-stop strain on the string).
 - One controller at a time: close the Web App's pose/admittance panel and leave the pad alone before scripts; check
   `kinova --json status` says ARMSTATE_SERVOING_READY. RB on the pad applies a stop (IN_FAULT); LB clears it.
 
@@ -171,6 +180,14 @@ newest first, timestamped from the system clock).
 - Which LLM API for the agent.
 
 ## Log
+
+### 2026-11-22 20:03 EST | Harish Bhamitipadi Magesh (+ Claude)
+- Rotate on the real arm diagnosed with in-air tests: move_joints (no constraint) turns joint 6, the server's rotate
+  (JOINT_CONSTRAINT_SPEED) aborts with code 1; with a duration constraint it works (10.05 deg). Then rotate after a
+  stalled grasp aborts (code 1) but works once the gripper is retargeted to its stalled position (10.06 deg, knob held).
+- RealBackend.grasp_knob now holds the gripper at its stalled position (+1 test; 36 pass). taught_poses.json records
+  the verified x-knob joint-6 sign. aims-kinova duration patch is local only, for Raoul to review.
+- Next: knob_dry_run x:30 (clockwise, pen moves right off the corner) with both fixes; then y knob and its sign.
 
 ### 2026-11-22 19:32 EST | Harish Bhamitipadi Magesh (+ Claude)
 - First real-arm run through RealBackend + the aims-kinova server (native Windows): grasp of the x knob worked, the
