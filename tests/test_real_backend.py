@@ -6,6 +6,7 @@ import threading
 import pytest
 
 from etch_sim.real import ArmClient, ArmRefused, RealBackend
+from etch_sim.real.backend import down_yaw_deg
 
 DOWN = [180.0, 0.0, 90.0]
 POSES = {"knobs": {"x": {"above": [0.38, 0.09, 0.15, *DOWN], "grasp": [0.38, 0.09, 0.10, *DOWN]},
@@ -19,7 +20,7 @@ class Stub(socketserver.ThreadingTCPServer):
 
     def __init__(self):
         self.pose = dict(x=0.38, y=0.0, z=0.20, theta_x=180.0, theta_y=0.0, theta_z=90.0)
-        self.calls, self.knob_present, self.dead = [], True, False
+        self.calls, self.knob_present, self.dead, self.flip_euler = [], True, False, False
         super().__init__(("127.0.0.1", 0), Handler)
 
     def reply(self, req):
@@ -33,10 +34,12 @@ class Stub(socketserver.ThreadingTCPServer):
             if req["z"] < 0.07:
                 self.dead = True
                 return {"ok": False, "error": "SAFETY: outside envelope", "routine_stopped": True}
-            self.pose = {k: req[k] for k in self.pose}
+            self.pose = {k: req[k] for k in ("x", "y", "z", "theta_x", "theta_y", "theta_z")}
             return {"ok": True, "event": "ACTION_END", "tool_pose": self.pose}
         if cmd == "rotate":
             self.pose["theta_z"] = (self.pose["theta_z"] + req["deg"] + 180) % 360 - 180
+            if self.flip_euler:                       # same orientation, the other Euler form (as the blue arm reports)
+                self.pose = dict(self.pose, theta_x=0.4, theta_y=-179.8, theta_z=(self.pose["theta_z"] + 360) % 360 - 180)
             return {"ok": True, "event": "ACTION_END", "rotated_deg": req["deg"], "tool_pose": self.pose}
         if cmd == "gripper":
             if req["position"] > 0.62 and self.knob_present:
@@ -73,6 +76,23 @@ def test_grasp_rotate_switch(rig):
     moves = [c for c in srv.calls if c["cmd"] == "move_pose"]
     assert moves[-1]["y"] == -0.09 and moves[-1]["z"] == 0.10
     assert all(m["theta_z"] == pytest.approx(-20.0) for m in moves[2:])       # wrist is not unwound between knobs
+
+
+def test_down_yaw_is_the_same_in_both_euler_forms():
+    assert down_yaw_deg(dict(theta_x=180.0, theta_y=0.0, theta_z=-119.1)) == pytest.approx(-119.1)
+    assert down_yaw_deg(dict(theta_x=0.4, theta_y=-179.8, theta_z=60.9)) == pytest.approx(-119.1, abs=0.01)
+
+
+def test_release_after_a_flipped_readback_does_not_spin_the_wrist(rig):
+    srv, client = rig
+    srv.pose["theta_z"] = 61.1
+    srv.flip_euler = True
+    b = RealBackend(client, POSES)
+    assert b.grasp_knob("x")
+    b.rotate(180.0)
+    b.release()
+    last = [c for c in srv.calls if c["cmd"] == "move_pose"][-1]
+    assert last["theta_x"] == 180.0 and last["theta_z"] == pytest.approx(61.1 - 180.0, abs=0.01)
 
 
 def test_missed_grasp_is_reported(rig):

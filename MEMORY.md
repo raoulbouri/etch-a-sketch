@@ -182,6 +182,13 @@ newest first, timestamped from the system clock).
 
 ## Log
 
+### 2026-11-22 20:42 EST | Harish Bhamitipadi Magesh (+ Claude)
+- knob_dry_run x:180: wrist +180.2 deg OK, then the release lift timed out (move_pose TIMEOUT, routine ended) halfway
+  through an unintended wrist spin. After the turn Kortex reported the downward tool as (0.4, -179.8, tz+180) instead
+  of (180, 0, tz); RealBackend fed that theta_z back with theta_x=180, theta_y=0 = a 180 deg spin. Fix: RealBackend
+  takes the wrist yaw from the tool x-axis heading (down_yaw_deg), same in both Euler forms; +2 tests, 37 pass.
+  Gripper was already open, knob released; no harm.
+
 ### 2026-11-22 20:33 EST | Harish Bhamitipadi Magesh (+ Claude)
 - First full x-knob turn on the real arm: knob_dry_run x:30 at 15 dps -> grasp (stall 0.707), wrist +30.1 deg, release.
 - Correction to 20:17: the remaining rotate abort was speed, not the gripper. x:10 then x:30 with the knob held, no new
