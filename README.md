@@ -111,7 +111,8 @@ because a hand turn rarely ends exactly on the mark. Precise backlash will come 
 
 Real arm: all motion goes through the motion server in the aims-kinova repo, inside a motion envelope that a
 person approves when starting it. A refused or failed motion raises `ArmRefused`; nothing retries. Knob poses
-are taught with `scripts/teach_pose.py` into `hardware/taught_poses.json`.
+are taught with `scripts/teach_pose.py` into `hardware/taught_poses.json`, or computed from two readings taken with the
+gripper closed on each knob in Cartesian admittance: `uv run python scripts/knob_poses.py x.json y.json [--write]`.
 
 ## Code layout
 
@@ -127,6 +128,7 @@ are taught with `scripts/teach_pose.py` into `hardware/taught_poses.json`.
 | `run_tracker.py` | Pen tracking over a whole run (real camera): ignores lines from before the run, lines that later disappear, and lines where the pen cannot be |
 | `mj/` | 6-DoF Gen3 generated from Kinova's xacro, toy model, scene, IK, MuJoCo skills backend |
 | `real/backend.py` | Client of the aims-kinova motion server |
+| `real/knob_poses.py` | Knob approach/grasp poses from two hand-guided arm readings; safety, envelope and IK checks |
 
 `hardware/` holds the measurement template, taught-pose template and the scene camera's screen corners.
 

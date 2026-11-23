@@ -1,10 +1,53 @@
 {
   "_comment": "Tool poses [x, y, z, theta_x, theta_y, theta_z] (m, deg, arm base frame) read from the arm with scripts/teach_pose.py while the toy sits in its fixture. null = not taught yet. Every other value here is a PLACEHOLDER until checked on the arm.",
   "knobs": {
-    "x": {"above": null, "grasp": null},
-    "y": {"above": null, "grasp": null}
+    "x": {
+      "above": [
+        0.3373,
+        0.0945,
+        0.1041,
+        180.0,
+        0.0,
+        111.217
+      ],
+      "grasp": [
+        0.3373,
+        0.0945,
+        0.0541,
+        180.0,
+        0.0,
+        111.217
+      ]
+    },
+    "y": {
+      "above": [
+        0.4093,
+        -0.0885,
+        0.1061,
+        180.0,
+        0.0,
+        111.217
+      ],
+      "grasp": [
+        0.4093,
+        -0.0885,
+        0.0561,
+        180.0,
+        0.0,
+        111.217
+      ]
+    }
   },
-  "gripper": {"pre": 0.45, "closed": 1.0, "held_min": 0.30, "held_max": 0.90},
-  "j6_deg_per_knob_deg": {"x": -1.0, "y": -1.0},
-  "knob_speed_dps": 30.0
+  "gripper": {
+    "pre": 0.45,
+    "closed": 1.0,
+    "held_min": 0.3,
+    "held_max": 0.9
+  },
+  "j6_deg_per_knob_deg": {
+    "x": -1.0,
+    "y": -1.0
+  },
+  "knob_speed_dps": 30.0,
+  "_knobs_source": "computed by scripts/knob_poses.py on 2026-11-22 19:05 from x_closed.json, y_closed.json: spacing 196.6 mm, toy yaw +21.5 deg, lift 0.05 m"
 }

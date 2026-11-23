@@ -133,6 +133,27 @@ newest first, timestamped from the system clock).
   untested until the arm draws. (verified 2026-11-22)
 - Current camera pose: toy ~1.67 px/mm, corners in hardware/scene_camera_screen.json (capture 20261122-141512).
 
+### Blue arm and the toy at the arm (verified 2026-11-22, Harish)
+- Blue arm (192.168.2.9) from a Windows laptop on Ethernet (laptop 192.168.2.20/24). Readings are Web App data
+  exports in hardware/arm_readings/20261122_blue/. Model FK vs the blue arm: 8-9 mm, ~1.2 deg at 5 poses; tool frame
+  0.12 m beyond the flange (0 / 0.156 m give 126 / 31 mm). Kortex theta_x/y/z = fixed-axis XYZ Euler (0.7 deg vs the
+  model; intrinsic is 120 deg off). Pinch point is 35.8 mm beyond the tool frame (model).
+- aims-kinova runs natively on Windows without Docker for the CLI: `uv venv --python 3.10`, kortex_api 2.6.0.post3
+  wheel with `--no-deps` (it pins protobuf 3.5.1), then protobuf 3.20.3, deprecated, pyyaml. Config comes only from
+  environment variables (PYTHONPATH=python, KINOVA_ARM, KINOVA_USERNAME, KINOVA_PASSWORD). `kinova --json ping` and
+  `status` work. The motion server has not been run natively yet; the arm repo says to run inside its container.
+- Arm base sits on a ~2 cm adapter plate: the table is at about z = -0.02 m in the arm base frame (photo + readings).
+- Toy taped flat next to the arm. Knob centres at grasp height (pinch, base frame): x (0.337, 0.095, 0.018),
+  y (0.409, -0.089, 0.020); spacing 196.6 mm (ToyGeometry PLACEHOLDER 180; card photo 195-200); toy rotated +21.5 deg
+  from square to the arm (finger yaw theta_z 111.2 at both knobs agrees). Which knob is x still to be confirmed by
+  turning it by hand (the toy is turned sideways to the arm).
+- Read knobs in Cartesian admittance with the gripper closed on the knob: the fingers pull the arm onto the knob's
+  centre. A joystick-mode reading did not centre and was 7.9 mm off.
+- `scripts/knob_poses.py` -> vertical approach (+5 cm) and grasp poses: grasp tool z 0.054-0.056 m, BELOW the
+  placeholder envelope floor 0.07 (etch_draw.json). Proposed box: x 0.307-0.439, y -0.118-0.124, z 0.039-0.136.
+- Envelope max_rotation_deg (1800) is per rotate command, not per routine. Xbox RB (the lab's "lock") puts the arm in
+  ARMSTATE_IN_FAULT until LB clears it.
+
 ### Open decisions
 - Decided 2026-11-09: bounded-routine approval (a person approves one envelope at the motion server); chunked
   joint 6 moves; a motion server in aims-kinova with etch-sim as client.
@@ -141,6 +162,14 @@ newest first, timestamped from the system clock).
 - Which LLM API for the agent.
 
 ## Log
+
+### 2026-11-22 18:59 EST | Harish Bhamitipadi Magesh (+ Claude)
+- First session at the blue arm (Web App, Xbox, admittance; read-only CLI from a native Windows aims-kinova venv).
+  Checked model FK, tool offset and Euler convention on the blue arm; placed and taped the toy; read both knobs.
+- Added `src/etch_sim/real/knob_poses.py` and `scripts/knob_poses.py` (readings -> knob centres, toy placement,
+  vertical approach/grasp poses, safety + envelope checks mirrored from aims-kinova, IK check on the model, envelope
+  proposal) and `tests/test_knob_poses.py` (5 tests; 34 pass). taught_poses.json NOT written yet (knob labels unconfirmed).
+- Proposed, not applied (rule 5): ToyGeometry knob spacing 196.6 mm; envelope floor 0.039 m (Raoul's file).
 
 ### 2026-11-22 14:42 EST | Yashasvi Sorapalli (+ Claude)
 - Added `src/etch_sim/run_tracker.py` (Yashasvi's three rules for a whole run) and `tests/test_run_tracker.py` (6 tests);
