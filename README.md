@@ -118,9 +118,10 @@ routine; nothing retries. Restart the server to start a new routine.
 
 Setup used for the blue arm (192.168.2.9, laptop on Ethernet at 192.168.2.20/24):
 - The server ran natively on Windows (Python 3.10 venv in aims-kinova; see MEMORY.md for the install), with the
-  envelope `etch_draw_blue_20261122` (box from `scripts/knob_poses.py`, valid only while the toy stays taped where it is).
-- Two local fixes to aims-kinova are needed and wait for Raoul's review: `rotate` uses a duration constraint (the speed
-  constraint is refused by the arm), and the gripper sends a Stop after stalling on a knob.
+  envelope `hardware/envelopes/etch_draw_blue_20261122.json` (box from `scripts/knob_poses.py`, valid only while the toy stays taped where it is).
+- aims-kinova needs one fix, waiting for Raoul's review (PR from the fork HBMatic/aims-kinova, branch
+  `harish/rotate-fixes`): `rotate` uses a duration constraint (the arm refuses the speed constraint). The same branch
+  has the gripper send a Stop after stalling, a precaution not shown to be needed.
 - One controller at a time: close the Web App's admittance panel and leave the Xbox pad alone; scripts refuse to start
   unless the arm reports `ARMSTATE_SERVOING_READY`.
 
