@@ -96,5 +96,16 @@ def test_refusal_stops_the_script(rig):
 
 def test_untaught_poses_are_rejected(rig):
     _, client = rig
-    with pytest.raises(ValueError):
-        RealBackend(client)                      # hardware/taught_poses.json still has nulls
+    untaught = json.loads(json.dumps(POSES))
+    untaught["knobs"]["y"]["grasp"] = None       # as in a fresh hardware/taught_poses.json
+    with pytest.raises(ValueError, match="y.grasp"):
+        RealBackend(client, untaught)
+
+
+def test_refusal_reports_the_arms_abort_details(rig):
+    srv, client = rig
+    srv.reply = lambda req: ({"ok": True, "state": {"tool_pose": srv.pose}} if req["cmd"] == "status" else
+                             {"ok": False, "event": "ACTION_ABORT", "abort_details": "18", "rotated_deg": 0.0})
+    b = RealBackend(client, POSES)
+    with pytest.raises(ArmRefused, match=r"abort_details.*18.*ROBOT_MOVEMENT_IN_PROGRESS"):
+        b.grasp_knob("x")

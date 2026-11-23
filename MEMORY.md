@@ -153,6 +153,15 @@ newest first, timestamped from the system clock).
   placeholder envelope floor 0.07 (etch_draw.json). Proposed box: x 0.307-0.439, y -0.118-0.124, z 0.039-0.136.
 - Envelope max_rotation_deg (1800) is per rotate command, not per routine. Xbox RB (the lab's "lock") puts the arm in
   ARMSTATE_IN_FAULT until LB clears it.
+- First real run 2026-11-22 (native server, envelope etch_draw_blue_20261122 = box from knob_poses.py, ceiling 0.26):
+  grasp of the x knob WORKED (computed poses put the fingers around the knob; gripper stalled at 0.712, held). The 30 deg
+  rotate came back ACTION_ABORT with nothing moved; a later CLI move-rel aborted with abort_details 18 =
+  ROBOT_MOVEMENT_IN_PROGRESS while arm_state was SERVOING_PLAYING_SEQUENCE / SERVOING_MANUALLY_CONTROLLED: the arm
+  refuses API commands while the Web App (admittance/pose panel) or the Xbox pad holds manual control. After admittance
+  was turned off the arm reported SERVOING_READY and move-rel worked. The rotate itself is still untested; whether the
+  abort was manual control or JOINT_CONSTRAINT_SPEED is unknown (its abort_details were not printed then).
+- One controller at a time: close the Web App's pose/admittance panel and leave the pad alone before scripts; check
+  `kinova --json status` says ARMSTATE_SERVOING_READY. RB on the pad applies a stop (IN_FAULT); LB clears it.
 
 ### Open decisions
 - Decided 2026-11-09: bounded-routine approval (a person approves one envelope at the motion server); chunked
@@ -162,6 +171,14 @@ newest first, timestamped from the system clock).
 - Which LLM API for the agent.
 
 ## Log
+
+### 2026-11-22 19:32 EST | Harish Bhamitipadi Magesh (+ Claude)
+- First real-arm run through RealBackend + the aims-kinova server (native Windows): grasp of the x knob worked, the
+  30 deg rotate aborted with no motion. CLI recovery (gripper opened from the pad, move-rel up 5 cm) found abort
+  code 18 (ROBOT_MOVEMENT_IN_PROGRESS) under manual control from the Web App/pad; fixed by turning admittance off.
+- ArmClient refusals now include abort_details, rotated_deg, chunks (and explain code 18). Fixed
+  test_untaught_poses_are_rejected, which read hardware/taught_poses.json and broke once real poses were written.
+  35 tests pass. Next: retry x:30 with SERVOING_READY confirmed; if it aborts again, read its abort_details.
 
 ### 2026-11-22 18:59 EST | Harish Bhamitipadi Magesh (+ Claude)
 - First session at the blue arm (Web App, Xbox, admittance; read-only CLI from a native Windows aims-kinova venv).

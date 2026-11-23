@@ -46,7 +46,11 @@ class ArmClient:
             raise ArmRefused("motion server closed the connection")
         reply = json.loads(line)
         if not reply.get("ok"):
-            raise ArmRefused(f"{cmd}: {reply.get('error') or reply.get('event')}")
+            why = reply.get("error") or reply.get("event")
+            extra = {k: reply[k] for k in ("abort_details", "rotated_deg", "chunks", "routine_stopped") if k in reply}
+            raise ArmRefused(f"{cmd}: {why}" + (f" {extra}" if extra else "")
+                             + ("  (abort_details 18 = ROBOT_MOVEMENT_IN_PROGRESS: another controller, e.g. the Web App"
+                                " or the Xbox pad, is driving the arm)" if str(reply.get("abort_details")) == "18" else ""))
         return reply
 
     def close(self) -> None:
