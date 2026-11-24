@@ -65,6 +65,35 @@ def square(side_mm: float = 40.0) -> list[Move]:
     return [("x", side_mm), ("y", side_mm), ("x", -side_mm), ("y", -side_mm)]
 
 
+def rectangle(w_mm: float = 40.0, h_mm: float = 25.0) -> list[Move]:
+    return [("x", w_mm), ("y", h_mm), ("x", -w_mm), ("y", -h_mm)]
+
+
+def merge(moves: list[Move]) -> list[Move]:
+    """Join consecutive moves on the same axis (each knob switch costs a release and a grasp)."""
+    out: list[Move] = []
+    for axis, mm in moves:
+        if out and out[-1][0] == axis:
+            out[-1] = (axis, out[-1][1] + mm)
+        else:
+            out.append((axis, mm))
+    return [m for m in out if abs(m[1]) > 1e-9]
+
+
+def stepped_circle(radius_mm: float = 15.0, steps_per_quadrant: int = 4) -> list[Move]:
+    """Closed staircase through points on a circle, starting at its bottom and going anticlockwise.
+
+    One knob at a time can only draw axis-aligned lines, so each chord becomes an x move then a y move.
+    The circle's centre is radius_mm above the start.
+    """
+    n = 4 * steps_per_quadrant
+    a = -np.pi / 2 + 2 * np.pi * np.arange(n + 1) / n
+    pts = radius_mm * np.c_[np.cos(a), np.sin(a)]
+    d = np.diff(pts, axis=0)
+    d[np.abs(d) < 1e-9] = 0.0
+    return merge([m for dx, dy in d for m in (("x", float(dx)), ("y", float(dy)))])
+
+
 def staircase(step_mm: float = 8.0, n: int = 5) -> list[Move]:
     """Up a staircase, then straight back down and along the base: a closed outline."""
     up = [m for _ in range(n) for m in (("x", step_mm), ("y", step_mm))]

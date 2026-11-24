@@ -9,9 +9,12 @@ newest first, timestamped from the system clock).
 - Team project, 4 people, 60 h, Nov 10 to Nov 30 2026. Proposal phases P0 to P4 with gates; sim stages S0 to S5
   run alongside. Proposal PDF: `etch_a_sketch_feasibility_plan.pdf` (not in the repo).
 - Stages done: S0 (toy kernel), S1 (MuJoCo scene), S2 (arm skills in MuJoCo, pen tracking, calibration through the
-  camera), S3 (image-to-route planner, toy kernel only). Not started: erase in MuJoCo, closed loop, agent. (verified 2026-11-22)
-- Hardware: Kinova Gen3 6-DoF + Robotiq 2F-85 + wrist camera at AIMS (green arm). Real-arm code and rules live in
-  the `aims-kinova` repo. No hardware Phase 0 measurement has been taken yet. (verified 2026-11-09)
+  camera), S3 (image-to-route planner, toy kernel only). Real arm: base test passed (blue arm, 30 mm square open loop,
+  2026-11-22). Not started: erase in MuJoCo, closed loop, agent; not run on the arm: other shapes, planner pictures,
+  erase, camera feedback. (verified 2026-11-22)
+- Hardware: Kinova Gen3 6-DoF + Robotiq 2F-85 + wrist camera at AIMS: blue arm (192.168.2.9, used for the base test)
+  and green arm (192.168.2.10). Real-arm code and rules live in the `aims-kinova` repo. Measured so far: knob k and
+  backlash by hand; knob speed limit and switch time on the arm. (verified 2026-11-22)
 
 ### Environment
 - macOS, `uv`, Python 3.12, MuJoCo 4.0.0, OpenCV 5.0.0 (ArUco is in the main package). Offscreen rendering works
@@ -133,6 +136,52 @@ newest first, timestamped from the system clock).
   untested until the arm draws. (verified 2026-11-22)
 - Current camera pose: toy ~1.67 px/mm, corners in hardware/scene_camera_screen.json (capture 20261122-141512).
 
+### Blue arm and the toy at the arm (verified 2026-11-22, Harish)
+- Blue arm (192.168.2.9) from a Windows laptop on Ethernet (laptop 192.168.2.20/24). Readings are Web App data
+  exports in hardware/arm_readings/20261122_blue/. Model FK vs the blue arm: 8-9 mm, ~1.2 deg at 5 poses; tool frame
+  0.12 m beyond the flange (0 / 0.156 m give 126 / 31 mm). Kortex theta_x/y/z = fixed-axis XYZ Euler (0.7 deg vs the
+  model; intrinsic is 120 deg off). Pinch point is 35.8 mm beyond the tool frame (model).
+- aims-kinova runs natively on Windows without Docker for the CLI: `uv venv --python 3.10`, kortex_api 2.6.0.post3
+  wheel with `--no-deps` (it pins protobuf 3.5.1), then protobuf 3.20.3, deprecated, pyyaml. Config comes only from
+  environment variables (PYTHONPATH=python, KINOVA_ARM, KINOVA_USERNAME, KINOVA_PASSWORD). `kinova --json ping` and
+  `status` work, and so does the motion server (`python -m kinova.server --envelope ...`), used for the whole
+  2026-11-22 session; the arm repo says to run inside its container (deviation, to clear with Raoul).
+- Arm base sits on a ~2 cm adapter plate: the table is at about z = -0.02 m in the arm base frame (photo + readings).
+- Toy taped flat next to the arm. Knob centres at grasp height (pinch, base frame): x (0.337, 0.095, 0.018),
+  y (0.409, -0.089, 0.020); spacing 196.6 mm (ToyGeometry PLACEHOLDER 180; card photo 195-200); toy rotated +21.5 deg
+  from square to the arm (finger yaw theta_z 111.2 at both knobs agrees). x = the left knob seen from the knob side, at
+  base y +0.095 (confirmed by turning it). Photo of the setup: hardware/draw_runs/20261122_square30.jpg.
+- Read knobs in Cartesian admittance with the gripper closed on the knob: the fingers pull the arm onto the knob's
+  centre. A joystick-mode reading did not centre and was 7.9 mm off.
+- `scripts/knob_poses.py` -> vertical approach (+5 cm) and grasp poses: grasp tool z 0.054-0.056 m, BELOW the
+  placeholder envelope floor 0.07 (etch_draw.json). Envelope used: `hardware/envelopes/etch_draw_blue_20261122.json`,
+  box x 0.307-0.439, y -0.118-0.124, z 0.039-0.26 (copy here; Raoul's repo still has the placeholder).
+- Envelope max_rotation_deg (1800) is per rotate command, not per routine. Xbox RB (the lab's "lock") puts the arm in
+  ARMSTATE_IN_FAULT until LB clears it.
+- First real run 2026-11-22 (native server, envelope etch_draw_blue_20261122 = box from knob_poses.py, ceiling 0.26):
+  grasp of the x knob WORKED (computed poses put the fingers around the knob; gripper stalled at 0.712, held). The 30 deg
+  rotate came back ACTION_ABORT with nothing moved; a later CLI move-rel aborted with abort_details 18 =
+  ROBOT_MOVEMENT_IN_PROGRESS while arm_state was SERVOING_PLAYING_SEQUENCE / SERVOING_MANUALLY_CONTROLLED: the arm
+  refuses API commands while the Web App's admittance actually holds the arm. arm_state SERVOING_MANUALLY_CONTROLLED
+  by itself is harmless (any gripper command sets it; move-rel and rotate still work in it).
+- Rotate aborts: TWO causes, both fixed (blue arm, 2026-11-22). (1) aims-kinova rotate_joint sent reach_joint_angles
+  with JOINT_CONSTRAINT_SPEED: ACTION_ABORT, abort_details 1 (METHOD_FAILED) even in the air; the same joint targets via
+  move_joints worked. Fix: JOINT_CONSTRAINT_DURATION = |chunk| / speed, min 1 s (patch on etch-bounded-routine, applied
+  locally on Harish's laptop, NOT yet reviewed or pushed by Raoul). (2) Too fast: 30 deg in 1 s is refused the same way
+  (code 1, no motion); 10 deg in 1 s and 30 deg in 2 s work. Fix: knob_speed_dps 15 in taught_poses.json. Every earlier
+  "after a grasp" failure was a 30 deg turn and every success a 10 deg one, so the stalled gripper was most likely never
+  the cause. The gripper-stall Base.Stop() patch (local only) is harmless but unproven as needed.
+- Kortex can report a downward tool as (~0, ~180, theta_z + 180) instead of (180, 0, theta_z), e.g. after a 180 deg
+  knob turn. Never feed a read-back theta_z into a (180, 0, .) target; RealBackend uses down_yaw_deg (tool heading).
+- Measured on the blue arm: 180 deg of knob moved the pen ~15 mm (x) and ~16 mm (y) by eye, as ToyParams predicts;
+  a knob switch (release + grasp) takes ~10 s; grasp stalls at 0.703-0.712 on both knobs.
+- Joint-6 sign: joint 6 +10 deg turned the x knob counter-clockwise seen from above, so knob clockwise = j6 negative;
+  j6_deg_per_knob_deg = -1 verified for x and y (clockwise moves the pen right / up).
+- Pen position is only known by eye (draw_shapes.py --start). Before any shape, move the pen >= 5 mm off the stops;
+  driving a knob into an end stop strains the string.
+- One controller at a time: close the Web App's pose/admittance panel and leave the pad alone before scripts; check
+  `kinova --json status` says ARMSTATE_SERVOING_READY. RB on the pad applies a stop (IN_FAULT); LB clears it.
+
 ### S3 planner (`src/etch_sim/planner.py`, kernel only) (verified 2026-11-22)
 - `plan_route(image, PlanParams, pen_mm)` -> `Route(moves, start_mm, polyline, target_mm, stats)`; `plan_for_budget` picks the
   smallest staircase tolerance that fits a time budget. Grid pitch 2 mm, margin 8 mm, default tol 1.5 x pitch.
@@ -153,11 +202,88 @@ newest first, timestamped from the system clock).
 - Which LLM API for the agent.
 
 ## Log
+### 2026-11-22 21:45 EST | Harish Bhamitipadi Magesh (+ Claude)
+- Correction to 21:26 entry: the aims-kinova changes are now committed locally on branch harish/rotate-fixes (bff79a7, on
+  7d0dab2; docstrings say the gripper Stop is a precaution). Push refused: HBMatic has no write access to
+  raoulbouri/aims-kinova; pushed to the fork HBMatic/aims-kinova instead, PR into etch-bounded-routine for Raoul.
+- Project overview doc (Claude Doc) updated with today's status, tasks and plan.
+
+### 2026-11-22 21:26 EST | Harish Bhamitipadi Magesh (+ Claude)
+- Documentation pass for the day: stale facts updated (stages, hardware, native server, which knob is x, envelope,
+  both joint-6 signs, pen-position rule, Euler-flip and arm timing facts). Envelope used copied to
+  hardware/envelopes/. README has a Real arm section with the base-test photo.
+- Still outside this repo: the aims-kinova duration fix (and the unproven gripper-stall Stop) are uncommitted on
+  Harish's laptop, waiting for Raoul.
+
+### 2026-11-22 21:15 EST | Harish Bhamitipadi Magesh (+ Claude)
+- BASE TEST PASSED on the real arm (blue, toy taped): pen moved off the corner with knob_dry_run x:170 y:160 (~14-16 mm
+  each), then `draw_shapes.py square --size 30 --start 14,14`: a closed square, corners meet, sides ~27-30 mm judged
+  from an angled phone photo with the screen window as scale (+-2-3 mm). Photo hardware/draw_runs/20261122_square30.jpg.
+- Next: triangle / circle / picture --image house; a square-on photo or D435 frame for a real error number.
+
+### 2026-11-22 20:58 EST | Harish Bhamitipadi Magesh (+ Claude)
+- Merged dev (Andrew's S3 planner) into harish/knob-poses; MEMORY conflict = both sides kept. 51 tests pass.
+- draw_shapes.py `picture --image ... --budget`: plan_for_budget from the pen with real-arm timing (switch 10 s,
+  15 dps, ToyParams calib). House at 600 s: tol 3 mm, 28 switches, ~9.9 min est; fake-server end to end OK.
+- For the planner's timing PLACEHOLDERS (switch 8 s, 30 dps): blue arm measured ~10 s per switch (release + grasp,
+  from knob_dry_run logs) and 15 dps max (30 deg in 1 s is refused).
+
+### 2026-11-22 20:53 EST | Harish Bhamitipadi Magesh (+ Claude)
+- Both knobs drive the pen on the real arm at 15 dps: x:180 -> ~15 mm right (by eye; model 0.0951 x (180 - 2x6.1)
+  = 16 mm), y:180 -> ~16 mm up (model ~17 mm). y joint-6 sign -1 confirmed (pen moved off the bottom stop).
+  Release after a 180 deg turn is clean with down_yaw_deg.
+- New scripts/draw_shapes.py (base test): square / rectangle / triangle (staircase) / circle (stepped), OpenLoopDrawer
+  with k and backlash from ToyParams, refuses shapes within 5 mm of an end stop from --start, --plan prints knob
+  degrees and time. draw.py: rectangle, merge, stepped_circle; +5 tests (42 pass). Fake-server end to end OK; not yet on the arm.
+
+### 2026-11-22 20:42 EST | Harish Bhamitipadi Magesh (+ Claude)
+- knob_dry_run x:180: wrist +180.2 deg OK, then the release lift timed out (move_pose TIMEOUT, routine ended) halfway
+  through an unintended wrist spin. After the turn Kortex reported the downward tool as (0.4, -179.8, tz+180) instead
+  of (180, 0, tz); RealBackend fed that theta_z back with theta_x=180, theta_y=0 = a 180 deg spin. Fix: RealBackend
+  takes the wrist yaw from the tool x-axis heading (down_yaw_deg), same in both Euler forms; +2 tests, 37 pass.
+  Gripper was already open, knob released; no harm.
+
+### 2026-11-22 20:33 EST | Harish Bhamitipadi Magesh (+ Claude)
+- First full x-knob turn on the real arm: knob_dry_run x:30 at 15 dps -> grasp (stall 0.707), wrist +30.1 deg, release.
+- Correction to 20:17: the remaining rotate abort was speed, not the gripper. x:10 then x:30 with the knob held, no new
+  stall in between: 10 OK, 30 refused (code 1). At 15 dps (30 deg over 2 s) it works. knob_speed_dps 30 -> 15.
+
+### 2026-11-22 20:17 EST | Harish Bhamitipadi Magesh (+ Claude)
+- Correction to 20:03: holding the gripper at its stalled position does not stop the rotate abort. Test: grasp
+  (stall + hold) -> `kinova stop` from a second session -> rotate -10 deg worked, knob turned clockwise with the wrist.
+  So Base.Stop() ends the stalled gripper command and the grip stays. Fix moved to aims-kinova motion.gripper (stop on
+  stall, 2 offline tests; local patch for Raoul). RealBackend hold removed again; 35 tests pass.
+- Joint-6 sign confirmed twice for the x knob: j6 -10 deg = clockwise.
+
+### 2026-11-22 20:03 EST | Harish Bhamitipadi Magesh (+ Claude)
+- Rotate on the real arm diagnosed with in-air tests: move_joints (no constraint) turns joint 6, the server's rotate
+  (JOINT_CONSTRAINT_SPEED) aborts with code 1; with a duration constraint it works (10.05 deg). Then rotate after a
+  stalled grasp aborts (code 1) but works once the gripper is retargeted to its stalled position (10.06 deg, knob held).
+- RealBackend.grasp_knob now holds the gripper at its stalled position (+1 test; 36 pass). taught_poses.json records
+  the verified x-knob joint-6 sign. aims-kinova duration patch is local only, for Raoul to review.
+- Next: knob_dry_run x:30 (clockwise, pen moves right off the corner) with both fixes; then y knob and its sign.
+
+### 2026-11-22 19:32 EST | Harish Bhamitipadi Magesh (+ Claude)
+- First real-arm run through RealBackend + the aims-kinova server (native Windows): grasp of the x knob worked, the
+  30 deg rotate aborted with no motion. CLI recovery (gripper opened from the pad, move-rel up 5 cm) found abort
+  code 18 (ROBOT_MOVEMENT_IN_PROGRESS) under manual control from the Web App/pad; fixed by turning admittance off.
+- ArmClient refusals now include abort_details, rotated_deg, chunks (and explain code 18). Fixed
+  test_untaught_poses_are_rejected, which read hardware/taught_poses.json and broke once real poses were written.
+  35 tests pass. Next: retry x:30 with SERVOING_READY confirmed; if it aborts again, read its abort_details.
+
+### 2026-11-22 18:59 EST | Harish Bhamitipadi Magesh (+ Claude)
+- First session at the blue arm (Web App, Xbox, admittance; read-only CLI from a native Windows aims-kinova venv).
+  Checked model FK, tool offset and Euler convention on the blue arm; placed and taped the toy; read both knobs.
+- Added `src/etch_sim/real/knob_poses.py` and `scripts/knob_poses.py` (readings -> knob centres, toy placement,
+  vertical approach/grasp poses, safety + envelope checks mirrored from aims-kinova, IK check on the model, envelope
+  proposal) and `tests/test_knob_poses.py` (5 tests; 34 pass). taught_poses.json NOT written yet (knob labels unconfirmed).
+- Proposed, not applied (rule 5): ToyGeometry knob spacing 196.6 mm; envelope floor 0.039 m (Raoul's file).
 
 ### 2026-11-22 17:53 EST | Andrew Haggstrom (+ Claude)
 - Added S3: `src/etch_sim/planner.py` (image -> one continuous Manhattan route), `scripts/s3_demo.py`, `tests/test_planner.py`
   (9 tests). Exit check passes; full suite passes. Kernel only, not run in MuJoCo or on the arm.
 - Next: join pieces at loose ends to cut retrace; try real line-art / LLM-generated pictures; MuJoCo run of a planned route.
+
 ### 2026-11-22 14:42 EST | Yashasvi Sorapalli (+ Claude)
 - Added `src/etch_sim/run_tracker.py` (Yashasvi's three rules for a whole run) and `tests/test_run_tracker.py` (6 tests);
   hand_calibrate.py and RealBackend.observe_pen use it (RealBackend now on sketch_extract masks, records wrist degrees).

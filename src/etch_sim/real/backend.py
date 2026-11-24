@@ -12,6 +12,7 @@ perception code as in simulation.
 from __future__ import annotations
 
 import json
+import math
 import socket
 import time
 from pathlib import Path
@@ -27,6 +28,17 @@ from ..interface import Axis, EraseResult, RotateResult
 from ..mj.toy_model import ToyGeometry
 
 POSES_FILE = Path(__file__).resolve().parents[3] / "hardware" / "taught_poses.json"
+
+
+def down_yaw_deg(tool_pose: dict) -> float:
+    """Wrist yaw of a tool pointing down, as theta_z for the (180, 0, theta_z) Euler form the taught poses use.
+
+    Kortex can report the same downward orientation as (~0, ~180, theta_z + 180) (blue arm, 2026-11-22, after a 180 deg
+    knob turn). Feeding that theta_z back with theta_x=180, theta_y=0 asks for a 180 deg wrist spin. The tool x axis
+    heading, cos(ty) * (cos tz, sin tz), is the same in both forms.
+    """
+    ty, tz = math.radians(tool_pose["theta_y"]), math.radians(tool_pose["theta_z"])
+    return math.degrees(math.atan2(math.sin(tz) * math.cos(ty), math.cos(tz) * math.cos(ty)))
 
 
 class ArmRefused(RuntimeError):
@@ -46,7 +58,11 @@ class ArmClient:
             raise ArmRefused("motion server closed the connection")
         reply = json.loads(line)
         if not reply.get("ok"):
-            raise ArmRefused(f"{cmd}: {reply.get('error') or reply.get('event')}")
+            why = reply.get("error") or reply.get("event")
+            extra = {k: reply[k] for k in ("abort_details", "rotated_deg", "chunks", "routine_stopped") if k in reply}
+            raise ArmRefused(f"{cmd}: {why}" + (f" {extra}" if extra else "")
+                             + ("  (abort_details 18 = ROBOT_MOVEMENT_IN_PROGRESS: another controller, e.g. the Web App"
+                                " or the Xbox pad, is driving the arm)" if str(reply.get("abort_details")) == "18" else ""))
         return reply
 
     def close(self) -> None:
@@ -89,7 +105,7 @@ class RealBackend:
         self._tracker = R.RunTracker(R.knobs_from_toy(), self._track_p)
         self._run_started = False
         self._moves: list[tuple[str, float]] = []           # (axis, knob degrees) since the last observation
-        self._theta_z = float(self.c.call("status")["state"]["tool_pose"]["theta_z"])
+        self._theta_z = down_yaw_deg(self.c.call("status")["state"]["tool_pose"])
         self._t0 = time.time()
         self.log: list[dict] = []
 
@@ -106,7 +122,7 @@ class RealBackend:
         """
         x, y, z, tx, ty, _ = pose
         r = self.c.call("move_pose", x=x, y=y, z=z, theta_x=tx, theta_y=ty, theta_z=self._theta_z)
-        self._theta_z = float(r["tool_pose"]["theta_z"])
+        self._theta_z = down_yaw_deg(r["tool_pose"])
 
     def grasp_knob(self, axis: Axis) -> bool:
         if self.held == axis:
@@ -127,6 +143,9 @@ class RealBackend:
             self.c.call("gripper", position=grip["pre"])
             self._move(knob["above"])
             return False
+        # A stall leaves the gripper command running, and the arm then fails the next action (rotate: ACTION_ABORT,
+        # abort_details 1, blue arm 2026-11-22). The motion server's gripper ends a stalled command with Base.Stop()
+        # (aims-kinova patch gripper-stall-stop); retargeting the gripper from here did not help.
         self.held = axis
         return True
 
@@ -135,7 +154,7 @@ class RealBackend:
             return RotateResult(deg, 0.0, ok=False, note="no knob held")
         sign = float(self.poses["j6_deg_per_knob_deg"][self.held])
         r = self.c.call("rotate", deg=deg * sign, speed=self.poses.get("knob_speed_dps"))
-        self._theta_z = float(r["tool_pose"]["theta_z"])
+        self._theta_z = down_yaw_deg(r["tool_pose"])
         wrist = float(r["rotated_deg"]) / sign
         self._moves.append((self.held, wrist))               # what the wrist turned; the knob may have slipped
         self.log.append({"t": self.clock_s, "skill": "rotate", "axis": self.held, "deg": deg, "wrist_deg": wrist})
