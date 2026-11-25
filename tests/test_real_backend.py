@@ -21,6 +21,7 @@ class Stub(socketserver.ThreadingTCPServer):
     def __init__(self):
         self.pose = dict(x=0.38, y=0.0, z=0.20, theta_x=180.0, theta_y=0.0, theta_z=90.0)
         self.calls, self.knob_present, self.dead, self.flip_euler = [], True, False, False
+        self.floor = 0.07                             # stand-in envelope floor (m)
         super().__init__(("127.0.0.1", 0), Handler)
 
     def reply(self, req):
@@ -31,7 +32,7 @@ class Stub(socketserver.ThreadingTCPServer):
         if self.dead:
             return {"ok": False, "error": "Routine has ended", "routine_stopped": True}
         if cmd == "move_pose":
-            if req["z"] < 0.07:
+            if req["z"] < self.floor:
                 self.dead = True
                 return {"ok": False, "error": "SAFETY: outside envelope", "routine_stopped": True}
             self.pose = {k: req[k] for k in ("x", "y", "z", "theta_x", "theta_y", "theta_z")}
@@ -130,3 +131,80 @@ def test_refusal_reports_the_arms_abort_details(rig):
     with pytest.raises(ArmRefused, match=r"abort_details.*18.*ROBOT_MOVEMENT_IN_PROGRESS"):
         b.grasp_knob("x")
 
+
+
+def test_relocated_live_poses_drive_the_drawer(rig, tmp_path, monkeypatch):
+    """relocate.py solve -> hardware/knob_poses_live.json -> RealBackend -> OpenLoopDrawer: the arm goes to the
+    re-located knob poses and turns the knobs with the taught signs."""
+    import importlib.util
+    from pathlib import Path
+    from etch_sim.draw import Calib, OpenLoopDrawer, square
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location("relocate", root / "scripts" / "relocate.py")
+    rl = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rl)
+    monkeypatch.setattr(rl, "LIVE_POSES", tmp_path / "knob_poses_live.json")
+    monkeypatch.setattr(rl, "ROOT", tmp_path)
+    (tmp_path / "s").mkdir()
+    grasp_x, grasp_y = [0.2082, 0.139, 0.0538, 180.0, 0.0, 135.2], [0.3095, -0.0174, 0.0539, 180.0, 0.0, -143.8]
+    res = {"board": {"x": 0.32, "y": 0.10, "yaw_deg": -57.8}, "date": "test",
+           "knobs": {"x": {"grasp": grasp_x, "approach": grasp_x[:2] + [0.1038] + grasp_x[3:]},
+                     "y": {"grasp": grasp_y, "approach": grasp_y[:2] + [0.1039] + grasp_y[3:]}}}
+    rl.write_live_poses(res, tmp_path / "s")
+    live = json.loads((tmp_path / "knob_poses_live.json").read_text())
+    assert live["knobs"]["x"]["grasp"] == grasp_x and live["j6_deg_per_knob_deg"] == {"x": -1.0, "y": -1.0}
+    srv, client = rig
+    srv.floor = 0.03                                         # the drawing envelope's floor is below the grasps
+    b = RealBackend(client, live)
+    OpenLoopDrawer(b, Calib({"x": 0.095, "y": 0.100}, {"x": 10.6, "y": 8.4})).draw(square(10.0))
+    moves = [c for c in srv.calls if c["cmd"] == "move_pose"]
+    grasps = [(m["x"], m["y"], m["z"]) for m in moves if m["z"] < 0.06]
+    assert (0.2082, 0.139, 0.0538) in grasps and (0.3095, -0.0174, 0.0539) in grasps
+    turns = [c["deg"] for c in srv.calls if c["cmd"] == "rotate"]
+    assert len(turns) == 4 and turns[0] < 0                  # +x (knob clockwise) = joint 6 negative
+
+
+def test_light_grip_closes_to_its_target_and_counts_as_held(rig):
+    srv, client = rig
+    poses = json.loads(json.dumps(POSES))
+    poses["gripper"]["light"] = 0.60                         # below the stub's 0.62 stall point: reaches its target
+    b = RealBackend(client, poses)
+    assert b.grasp_knob("x")
+    closes = [c["position"] for c in srv.calls if c["cmd"] == "gripper"]
+    assert closes[-1] == 0.60                                 # light target, not the full 1.0 squeeze
+    b2 = RealBackend(client, POSES)                          # without "light": full squeeze, stall required
+    assert b2.grip_target is None
+
+
+def test_light_grip_that_closes_on_nothing_is_not_held(rig):
+    srv, client = rig
+    srv.knob_present = False
+    poses = json.loads(json.dumps(POSES))
+    poses["gripper"]["light"] = 0.95                         # outside held_max 0.90: fingers met, nothing between
+    assert not RealBackend(client, poses).grasp_knob("x")
+
+
+def test_light_grip_still_detects_a_missing_knob(rig):
+    """2026-11-24: the toy had been shaken away from the knob poses; a light-grip target alone stopped at the target
+    and counted as held. Closing fully first tells a knob (stall ~0.62) from nothing (closes to 1.0)."""
+    srv, client = rig
+    srv.knob_present = False
+    poses = json.loads(json.dumps(POSES))
+    poses["gripper"]["light"] = 0.61
+    b = RealBackend(client, poses)
+    assert not b.grasp_knob("x")
+    srv.knob_present = True
+    srv.calls.clear()
+    assert b.grasp_knob("x")
+    closes = [c["position"] for c in srv.calls if c["cmd"] == "gripper"]
+    assert closes[-2:] == [1.0, 0.61]                        # full close detects the knob, then ease to the light grip
+
+
+def test_drawer_stops_on_a_missed_knob_without_turning(rig):
+    from etch_sim.draw import Calib, GraspFailed, OpenLoopDrawer, square
+    srv, client = rig
+    srv.knob_present = False
+    b = RealBackend(client, POSES)
+    with pytest.raises(GraspFailed, match="not gripped"):
+        OpenLoopDrawer(b, Calib()).draw(square(10.0))
+    assert not [c for c in srv.calls if c["cmd"] == "rotate"]   # no knob turn was sent

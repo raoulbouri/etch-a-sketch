@@ -1,0 +1,178 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.276 841.890] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 3446 >>
+stream
+0 g
+BT /F1 14 Tf 203.138 779.528 Td (Etch-a-Sketch board markers) Tj ET
+BT /F1 9 Tf 108.638 756.850 Td (ArUco DICT_4X4_50, IDs 0-3. Cut-out 30 mm, black square 22.5 mm. A4, print at 100 %.) Tj ET
+0 g
+53.150 625.748 63.780 63.780 re
+f
+1 g
+63.780 668.268 10.630 10.630 re
+f
+85.039 668.268 10.630 10.630 re
+f
+95.669 668.268 10.630 10.630 re
+f
+74.409 657.638 10.630 10.630 re
+f
+95.669 657.638 10.630 10.630 re
+f
+85.039 647.008 10.630 10.630 re
+f
+95.669 647.008 10.630 10.630 re
+f
+85.039 636.378 10.630 10.630 re
+f
+0.5 G 0.3 w [2 1.5] 0 d
+42.520 615.118 85.039 85.039 re
+S
+[] 0 d
+0.72 g
+70.866 692.185 m 75.402 692.185 l 73.134 696.969 l f
+BT /F1 4.5 Tf 81.682 692.185 Td (TOP 0) Tj ET
+0 g
+BT /F1 8 Tf 77.039 602.362 Td (ID 0) Tj ET
+0 g
+194.882 625.748 63.780 63.780 re
+f
+1 g
+205.512 657.638 10.630 10.630 re
+f
+216.142 657.638 10.630 10.630 re
+f
+226.772 657.638 10.630 10.630 re
+f
+237.402 657.638 10.630 10.630 re
+f
+205.512 647.008 10.630 10.630 re
+f
+237.402 647.008 10.630 10.630 re
+f
+205.512 636.378 10.630 10.630 re
+f
+226.772 636.378 10.630 10.630 re
+f
+0.5 G 0.3 w [2 1.5] 0 d
+184.252 615.118 85.039 85.039 re
+S
+[] 0 d
+0.72 g
+212.598 692.185 m 217.134 692.185 l 214.866 696.969 l f
+BT /F1 4.5 Tf 223.414 692.185 Td (TOP 1) Tj ET
+0 g
+BT /F1 8 Tf 218.772 602.362 Td (ID 1) Tj ET
+0 g
+336.614 625.748 63.780 63.780 re
+f
+1 g
+368.504 668.268 10.630 10.630 re
+f
+379.134 668.268 10.630 10.630 re
+f
+368.504 657.638 10.630 10.630 re
+f
+379.134 657.638 10.630 10.630 re
+f
+368.504 647.008 10.630 10.630 re
+f
+347.244 636.378 10.630 10.630 re
+f
+357.874 636.378 10.630 10.630 re
+f
+379.134 636.378 10.630 10.630 re
+f
+0.5 G 0.3 w [2 1.5] 0 d
+325.984 615.118 85.039 85.039 re
+S
+[] 0 d
+0.72 g
+354.331 692.185 m 358.866 692.185 l 356.598 696.969 l f
+BT /F1 4.5 Tf 365.147 692.185 Td (TOP 2) Tj ET
+0 g
+BT /F1 8 Tf 360.504 602.362 Td (ID 2) Tj ET
+0 g
+478.346 625.748 63.780 63.780 re
+f
+1 g
+488.976 668.268 10.630 10.630 re
+f
+520.866 668.268 10.630 10.630 re
+f
+488.976 657.638 10.630 10.630 re
+f
+520.866 657.638 10.630 10.630 re
+f
+499.606 647.008 10.630 10.630 re
+f
+499.606 636.378 10.630 10.630 re
+f
+510.236 636.378 10.630 10.630 re
+f
+0.5 G 0.3 w [2 1.5] 0 d
+467.717 615.118 85.039 85.039 re
+S
+[] 0 d
+0.72 g
+496.063 692.185 m 500.598 692.185 l 498.331 696.969 l f
+BT /F1 4.5 Tf 506.879 692.185 Td (TOP 3) Tj ET
+0 g
+BT /F1 8 Tf 502.236 602.362 Td (ID 3) Tj ET
+0 g
+155.906 535.748 283.465 1.701 re
+f
+155.480 535.748 0.850 11.339 re
+f
+183.827 535.748 0.850 7.087 re
+f
+212.173 535.748 0.850 7.087 re
+f
+240.520 535.748 0.850 7.087 re
+f
+268.866 535.748 0.850 7.087 re
+f
+297.213 535.748 0.850 11.339 re
+f
+325.559 535.748 0.850 7.087 re
+f
+353.906 535.748 0.850 7.087 re
+f
+382.252 535.748 0.850 7.087 re
+f
+410.598 535.748 0.850 7.087 re
+f
+438.945 535.748 0.850 11.339 re
+f
+BT /F1 9 Tf 61.388 518.740 Td (This bar must measure 100 mm, each cut-out 30 mm and each black square 22.5 mm. If not, reprint at 100 %.) Tj ET
+BT /F1 8.5 Tf 51.024 484.724 Td (Cut on the dashed line. Keep the white border around the black square: the detector needs it.) Tj ET
+BT /F1 8.5 Tf 51.024 469.134 Td (Stick all four flat, with TOP towards the top of the screen \(rotated markers give a wrong board pose\).) Tj ET
+BT /F1 8.5 Tf 51.024 453.543 Td (Suggested spots: near the four corners of the screen, all on the same flat face of the toy.) Tj ET
+BT /F1 8.5 Tf 51.024 437.953 Td (Afterwards measure each marker centre in the screen frame \(mm\) for ToyGeometry.marker_xy_mm; marker_mm = 22.5.) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000249 00000 n 
+0000003747 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+3844
+%%EOF

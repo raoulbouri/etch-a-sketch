@@ -1,0 +1,22 @@
+{
+  "name": "relocate_workspace_10",
+  "box_min": [
+    0.067,
+    -0.182,
+    0.188
+  ],
+  "box_max": [
+    0.318,
+    0.247,
+    0.612
+  ],
+  "max_lin_speed": 0.05,
+  "max_ang_speed": 30.0,
+  "max_tilt_deg": 38.0,
+  "rotate_joint": 6,
+  "max_rotation_deg": 1.0,
+  "max_step_m": 0.25,
+  "max_commands": 60,
+  "max_duration_s": 900.0,
+  "notes": "Re-locate workspace (etch-sim scripts/relocate.py workspace): high survey poses and wrist views of the Etch-a-Sketch markers for any board placement with centre radius [0.3, 0.4] m, azimuth [0.0, 30.0] deg. Camera only: no gripper or knob commands."
+}

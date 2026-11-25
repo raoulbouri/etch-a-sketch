@@ -1,0 +1,53 @@
+{
+ "status": "PROVISIONAL: joint-fit rms 4.4 px (target < 0.5); absolute height in the base frame unverified (chart 11-13 mm below the pad-based expectation). Single-view target repeatability 1-2 mm std.",
+ "arm": "green 192.168.2.10",
+ "date": "2026-11-24 19:23",
+ "image_size": [
+  1280,
+  720
+ ],
+ "K": [
+  [
+   1284.8234148137915,
+   0.0,
+   670.3598901714587
+  ],
+  [
+   0.0,
+   1290.8310552898329,
+   242.9299092944572
+  ],
+  [
+   0.0,
+   0.0,
+   1.0
+  ]
+ ],
+ "dist_k1k2p1p2k3": [
+  0.004072805417731387,
+  -0.03259346651868377,
+  -0.005886070209143206,
+  0.008127371747606058,
+  0.0
+ ],
+ "mount_in_flange": {
+  "t_m": [
+   0.0004128299738826678,
+   0.055439708882605236,
+   2.67224785135993e-05
+  ],
+  "rotvec": [
+   0.05987170347082315,
+   -0.016588259678951132,
+   -3.1375875140306966
+  ],
+  "note": "camera in the flange frame (flange = Kortex tool frame - 0.12 m along tool z)"
+ },
+ "method": "joint fit of lens, mount and two chart placements over 42 views (arm poses from Kortex), soft-L1",
+ "sessions": [
+  "test_images/wrist_calib/20261124-185020",
+  "test_images/wrist_calib/20261124-191252"
+ ],
+ "chart_scale": 0.984860926001828,
+ "joint_rms_px": 4.36
+}
