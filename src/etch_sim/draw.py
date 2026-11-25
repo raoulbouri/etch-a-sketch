@@ -100,6 +100,21 @@ def staircase(step_mm: float = 8.0, n: int = 5) -> list[Move]:
     return up + [("y", -step_mm * n), ("x", -step_mm * n)]
 
 
+def spiral_out(outer_mm: float = 60.0, loops: int = 6, aspect: float = 0.75) -> list[Move]:
+    """Rectangular spiral from the pen outwards (start in the middle, wind anticlockwise, end at the bottom-left corner).
+
+    One knob at a time, so every line is horizontal or vertical: x +p, y +p*a, x -2p, y -2p*a, x +3p, ... with
+    p = outer_mm / (2 * loops). After `loops` turns the outer box is outer_mm wide and outer_mm * aspect high, centred
+    on the start. 4 * loops lines, each a knob switch.
+    """
+    p = outer_mm / (2 * loops)
+    moves: list[Move] = []
+    for n in range(1, 2 * loops + 1):
+        s = 1.0 if n % 2 else -1.0
+        moves += [("x", s * n * p), ("y", s * n * p * aspect)]
+    return moves
+
+
 def spiral(outer_mm: float = 48.0, pitch_mm: float = 8.0) -> list[Move]:
     """Rectangular spiral winding inwards."""
     moves: list[Move] = []

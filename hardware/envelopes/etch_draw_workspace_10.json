@@ -1,0 +1,23 @@
+{
+  "name": "etch_draw_workspace_10",
+  "box_min": [
+    0.115,
+    -0.129,
+    0.039
+  ],
+  "box_max": [
+    0.421,
+    0.329,
+    0.134
+  ],
+  "max_lin_speed": 0.05,
+  "max_ang_speed": 30.0,
+  "max_tilt_deg": 5.0,
+  "rotate_joint": 6,
+  "max_rotation_deg": 1800.0,
+  "max_joint_torque_nm": 0.7,
+  "max_step_m": 0.25,
+  "max_commands": 2000,
+  "max_duration_s": 1800.0,
+  "notes": "Etch-a-Sketch drawing (etch-sim RealBackend with hardware/knob_poses_live.json from scripts/relocate.py): knob approach/grasp poses for any board placement in the re-locate workspace, gripper, joint-6 knob turns. Lift the arm out of it between sessions (J2 heats up when parked low)."
+}

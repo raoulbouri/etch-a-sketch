@@ -114,5 +114,22 @@
    }
   ]
  },
- "grip_raise_mm": 0.0
+ "grip_raise_mm": 0.0,
+ "screen_in_board_mm": {
+  "x_min_mm": -75.2,
+  "x_max_mm": 77.3,
+  "y_min_mm": -51.9,
+  "y_max_mm": 51.4,
+  "frame": "visible screen window in the board frame (axis-aligned), from teach views 00/01/02/04 rectified at the marker surface; drawable area 153 x 107 mm nominal",
+  "spread_mm": {
+   "left": 2.9,
+   "right": 1.3,
+   "bottom": 0.8,
+   "top": 1.8
+  },
+  "size_mm": [
+   152.5,
+   103.3
+  ]
+ }
 }

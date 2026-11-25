@@ -258,6 +258,25 @@ newest first, timestamped from the system clock).
   workspace): start saw 1 tag, surveys saw 2/3/3, views 4/2/4/2/4; fit 5.65 px; 96 s. The arm then went on its own above
   each predicted knob and straight down to the exact grasp pose; left knob centred (Raoul checked), both closed and stalled
   at 0.630 (taught 0.583-0.622). Right knob done in one shot (open, lift, above, descend, close).
+- Knob torque measurement (green arm, 2026-11-24 ~21:50, approved routine etch_draw_workspace_10, read-only logger at
+  21 Hz -> kinova-gen3-docker/logs/j6_torque_20261124.csv): direction check OK (y +15 and x +15 knob deg = J6 -15 deg,
+  signs -1/-1 confirmed on the green arm; grips 0.630/0.634). Joint-6 torque still -0.09 +- 0.17 Nm; turning a held knob
+  +0.18 / -0.25..-0.33 Nm at 5 AND 15 deg/s, the same as the wrist turning empty (+0.26 / -0.16..-0.25): the load is
+  joint-6 friction, the knob itself needs almost nothing. Moving readings scatter to ~0.5 Nm, so a torque alarm would
+  sit near 0.7 Nm (~100+ N of string tension on a ~5.4 mm drum): a backstop only, not protection.
+- Kortex GRIPPER_FORCE is "not implemented yet" (ros_kortex Base.proto): no software grip-force limit. A slip clutch
+  needs a light position-mode grip (target near the 0.63 contact point) or a mechanical compliant coupling; untested.
+- Session 2026-11-24 ~22:10-22:40 (green arm): (1) re-locate twice more, board unchanged -> repeatability 0.3-0.9 mm, knobs
+  0.4-1.3 mm. (2) Light grip: target 0.610 (stops 0.606), 0.620, 0.627 ALL turned both knobs +-15 deg at 5 deg/s (Raoul
+  watched the pen); J6 torque identical at every level (+0.35/-0.11 Nm), so torque cannot tell slip from turn. 0.610 is
+  the drawing grip (gripper.light in taught_poses.json); the slip point is below 0.606, not yet found. (3) Guarded 10 mm
+  test line on the left knob with the light grip, under etch_draw_workspace_10 with the 0.7 Nm backstop: 55 commands,
+  no refusals, backstop never tripped. (4) C4 (pen from wrist frames) BLOCKED: rectified screens are 35-94 % saturated
+  (wrist camera auto exposure on the light screen + glare); the new line is not in the images. Next: read the vision
+  module's exposure options (read-only) and try fixed lower exposure / glare-free view angles, or use the D435.
+- Xbox pad: input from the connected pad (thumb, stick not centring) aborts CLI moves (ACTION_ABORT after a few mm)
+  and drifted the arm 7-18 mm between commands. Unplug the pad's USB during scripted sessions. The arm reads
+  "SERVOING_MANUALLY_CONTROLLED" after any CLI command even with the pad unplugged: that state alone is harmless.
 - Restart note: after a limp/e-stop restart the green arm sat with joint 3 at -158 deg; Cartesian moves were refused
   (ACTION_ABORT, INVALID_PARAM) until a joint move brought it back in range. The gripper reported closed (0.996) with
   the fingers apart until the arm was power-cycled.
@@ -279,6 +298,28 @@ newest first, timestamped from the system clock).
 - Which LLM API for the agent.
 
 ## Log
+### 2026-11-24 22:54 EST | Raoul Bouri (+ Claude)
+- draw.spiral_out (centre-out rectangular spiral) + draw_shapes.py `spiral`; draw_shapes now runs the WHOLE drawing
+  through the end-stop guard before moving (open loop a 60 mm spiral from the middle passes, ending at +-24 mm; 84 mm is
+  refused at line 24/26 instead of half-drawn). Light grip 0.610 in taught_poses.json. 75 tests pass.
+- README "Draw after a re-locate, without snapping the string": the protection layers and the D435 plan (Linux laptop +
+  SSH tunnel to RealSenseServer from PR #1, run_tracker re-anchors the guard to +-1.5 mm, a line that does not grow =
+  slip or stop). Same plan in endstop.py's docstring.
+### 2026-11-24 22:41 EST | Raoul Bouri (+ Claude)
+- C1 (15 deg slow steps near edges), C2 (aims-kinova branch rotate-torque-guard: J6 torque backstop, envelope field
+  max_joint_torque_nm), C3 (screen 152.5 x 103.3 mm in board_model.json) built; light grip 0.610 chosen; test line drawn.
+- C4 blocked by wrist-camera saturation on the screen. Arm parked high (z 0.32) after the last re-locate.
+### 2026-11-24 22:00 EST (approximate) | Raoul Bouri (+ Claude)
+- Branch relocate-drawing (on PR #4): relocate.py solve writes hardware/knob_poses_live.json (RealBackend format,
+  git-ignored); draw_shapes.py / knob_dry_run.py take --poses; `relocate.py draw-envelope` writes ONE drawing envelope
+  hardware/envelopes/etch_draw_workspace_10.json (knob poses for any workspace placement, 0.19-0.41 m from the base
+  axis, tilt 5, joint-6 turns). New src/etch_sim/endstop.py: TravelGuard + GuardedDrawer refuse any move that could end
+  within 5 mm (+ growing uncertainty) of an edge, and allow only backing off after a torque stop; wired into
+  draw_shapes.py (--start-unc). Kernel tests: unguarded 40 mm move snaps the string, guarded one is refused. 69 pass.
+- aims-kinova PR #2 (merged): green arm J6 fine at 15-30 deg/s; J6 + = knob anticlockwise from above; J2 overheats
+  when parked low (60 C limit; read temperature_motor). J2 read 39.8 C while holding a knob ~10 min.
+- Next: arm session (approved per step) for the direction check and the J6 torque measurement, then the torque guard
+  in aims-kinova.
 ### 2026-11-24 22:00 EST | Raoul Bouri (+ Claude)
 - relocate.py auto + workspace (survey fallback, one envelope); first autonomous re-locate + grasps of both knobs succeeded.
 - To do: widen the workspace yaw range (board turned 33 deg), speed up (96 s), more placements, then drawing from here.

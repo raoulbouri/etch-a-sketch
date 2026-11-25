@@ -108,6 +108,10 @@ class RealBackend:
         self._theta_z = down_yaw_deg(self.c.call("status")["state"]["tool_pose"])
         self._t0 = time.time()
         self.log: list[dict] = []
+        self.speed_dps_override: float | None = None   # set by GuardedDrawer near the edges (slow, small steps)
+        # light grip: close only to this position (near the knob's contact point) instead of squeezing to 'closed', so
+        # the fingers can slip before the string is loaded. Kortex has no grip-force mode (GRIPPER_FORCE not implemented).
+        self.grip_target: float | None = self.poses.get("gripper", {}).get("light")
 
     @property
     def clock_s(self) -> float:
@@ -134,8 +138,11 @@ class RealBackend:
         self.c.call("gripper", position=grip["pre"])
         self._move(knob["above"])
         self._move(knob["grasp"])
-        r = self.c.call("gripper", position=grip["closed"])
-        held = "STALLED" in r.get("event", "") and grip["held_min"] <= r["position"] <= grip["held_max"]
+        r = self.c.call("gripper", position=self.grip_target if self.grip_target is not None else grip["closed"])
+        # A full squeeze (1.0) stalls on the knob. A light grip (target near the knob's contact point, ~0.63 on the
+        # 2026-11-24 toy) may stop AT its target instead: then the position alone tells whether the knob is held.
+        held = grip["held_min"] <= r["position"] <= grip["held_max"] and (
+            "STALLED" in r.get("event", "") or self.grip_target is not None)
         self.log.append({"t": self.clock_s, "skill": "grasp_knob", "axis": axis, "held": held, "gripper": r.get("position")})
         self._last_axis = axis
         self.n_switches += int(switching)
@@ -153,7 +160,7 @@ class RealBackend:
         if self.held is None:
             return RotateResult(deg, 0.0, ok=False, note="no knob held")
         sign = float(self.poses["j6_deg_per_knob_deg"][self.held])
-        r = self.c.call("rotate", deg=deg * sign, speed=self.poses.get("knob_speed_dps"))
+        r = self.c.call("rotate", deg=deg * sign, speed=self.speed_dps_override or self.poses.get("knob_speed_dps"))
         self._theta_z = down_yaw_deg(r["tool_pose"])
         wrist = float(r["rotated_deg"]) / sign
         self._moves.append((self.held, wrist))               # what the wrist turned; the knob may have slipped

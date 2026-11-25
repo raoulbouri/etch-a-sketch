@@ -25,7 +25,8 @@ from pathlib import Path
 
 import numpy as np
 
-from etch_sim.draw import Calib, OpenLoopDrawer, polyline, rectangle, square, staircase, stepped_circle
+from etch_sim.draw import Calib, OpenLoopDrawer, polyline, rectangle, spiral_out, square, staircase, stepped_circle
+from etch_sim.endstop import EndStopRisk, GuardedDrawer, GuardParams, TravelGuard
 from etch_sim.kernel import ToyParams
 from etch_sim.planner import PlanParams, plan_for_budget
 
@@ -43,6 +44,8 @@ def shape_moves(name: str, size: float, steps: int):
         return staircase(size / steps, steps)
     if name == "circle":
         return stepped_circle(size / 2, steps)
+    if name == "spiral":                                 # centre-out rectangular spiral, `steps` loops, 3:4 high
+        return spiral_out(size, steps)
     raise SystemExit(f"unknown shape {name}")
 
 
@@ -74,20 +77,24 @@ def plan(moves, calib: Calib, speed_dps: float):
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("shape", choices=["square", "rectangle", "triangle", "circle", "picture"])
+    ap.add_argument("shape", choices=["square", "rectangle", "triangle", "circle", "spiral", "picture"])
     ap.add_argument("--image", help="picture: image file, or house / circle / heart / pieces")
     ap.add_argument("--budget", type=float, default=600.0, help="picture: time budget, s (sets the staircase tolerance)")
-    ap.add_argument("--size", type=float, default=30.0, help="side / width / triangle leg / circle diameter, mm")
-    ap.add_argument("--steps", type=int, default=4, help="triangle stairs, or circle steps per quadrant")
+    ap.add_argument("--size", type=float, default=30.0, help="side / width / triangle leg / circle diameter / spiral outer width, mm")
+    ap.add_argument("--steps", type=int, default=4, help="triangle stairs, circle steps per quadrant, or spiral loops")
     ap.add_argument("--start", required=True, help="pen position now, 'x,y' mm from the left and bottom edges")
     ap.add_argument("--no-preload", action="store_true", help="skip taking up the slack in + on both knobs first")
     ap.add_argument("--plan", action="store_true", help="print the plan and exit; no arm")
     ap.add_argument("--pause", action="store_true", help="wait for Enter before every line")
+    ap.add_argument("--start-unc", type=float, default=5.0,
+                    help="how sure --start is, mm (by eye ~5, wrist camera ~1.5); the end-stop guard grows it per move")
+    ap.add_argument("--poses", default="hardware/taught_poses.json",
+                    help="knob poses for RealBackend; hardware/knob_poses_live.json after relocate.py solve")
     a = ap.parse_args()
 
     toy = ToyParams()
     calib = Calib({ax: toy.axis(ax).k_mm_per_deg for ax in "xy"}, {ax: toy.axis(ax).delta_deg for ax in "xy"})
-    poses = json.loads(Path("hardware/taught_poses.json").read_text())
+    poses = json.loads(Path(a.poses).read_text())
     speed = float(poses.get("knob_speed_dps") or 15.0)
     start = np.array([float(v) for v in a.start.split(",")])
     pre_mm = {ax: 0.0 if a.no_preload else (2 * calib.delta_deg[ax] + 10.0) * calib.k_mm_per_deg[ax] for ax in "xy"}  # at most
@@ -122,6 +129,20 @@ def main() -> None:
     if (lo < MARGIN_MM).any() or (hi > travel - MARGIN_MM).any():
         raise SystemExit(f"refused: the shape comes within {MARGIN_MM:g} mm of an end stop from --start {a.start}. "
                          "Smaller --size, or move the pen first.")
+    # the whole drawing through the end-stop guard before anything moves: the guard's uncertainty grows with every
+    # line drawn open loop, so a drawing can be safe at the start and refused later; refuse it now, not half-drawn
+    sim = TravelGuard(GuardParams(travel_mm={"x": toy.x.travel_mm, "y": toy.y.travel_mm}, margin_mm=MARGIN_MM))
+    for i, ax in enumerate("xy"):
+        sim.anchor(ax, float(start[i]), a.start_unc)
+    plan_moves = ([] if a.no_preload else [(ax, pre_mm[ax]) for ax in "xy"]) + list(moves)
+    for i, (ax, mm) in enumerate(plan_moves, 1):
+        try:
+            sim.check(ax, mm)
+        except EndStopRisk as e:
+            raise SystemExit(f"refused: line {i}/{len(plan_moves)} could reach an end stop ({e}). Draw smaller, start "
+                             "nearer the middle, or measure the pen (D435) so the uncertainty stays small.")
+        sim.commit(ax, mm)
+    print(f"end-stop guard: whole drawing OK; pen uncertainty at the end +-{sim.unc['x']:.1f} / +-{sim.unc['y']:.1f} mm")
     if t > 0.8 * ROUTINE_MAX_S:
         raise SystemExit(f"refused: ~{t / 60:.0f} min is too close to the routine's {ROUTINE_MAX_S / 60:.0f} min limit.")
     if a.plan:
@@ -132,8 +153,11 @@ def main() -> None:
     st = c.call("status")["state"]
     if st.get("arm_state", "ARMSTATE_SERVOING_READY") != "ARMSTATE_SERVOING_READY":
         raise SystemExit(f"arm is {st.get('arm_state')}, not SERVOING_READY. Close the Web App, leave the pad alone.")
-    b = RealBackend(c)
-    d = OpenLoopDrawer(b, calib)
+    b = RealBackend(c, poses)
+    guard = TravelGuard(GuardParams(travel_mm={"x": toy.x.travel_mm, "y": toy.y.travel_mm}, margin_mm=MARGIN_MM))
+    for i, ax in enumerate("xy"):
+        guard.anchor(ax, float(start[i]), a.start_unc)
+    d = GuardedDrawer(b, calib, guard)                   # refuses any move that could reach an end stop, before turning
     t0 = time.time()
     try:
         if not a.no_preload:
@@ -147,6 +171,11 @@ def main() -> None:
             r = b.log[-1]
             print(f"  {i:2d}. {axis} {mm:+6.1f} mm: wrist {r.get('wrist_deg', float('nan')):+7.1f} deg   t={time.time() - t0:5.0f} s")
         b.release()
+    except EndStopRisk as e:
+        print(f"STOPPED before turning: {e}")
+        b.release()
+        print("The knob was released and the arm is above it. Re-measure the pen position, or move the pen off the edge.")
+        raise SystemExit(1)
     except ArmRefused as e:
         print(f"REFUSED: {e}")
         try:

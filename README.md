@@ -177,6 +177,42 @@ Results on 2026-11-24 (green arm): after the toy moved 8.4 cm / 7 deg, both pred
 `auto` found the board through the survey poses (96 s), and the arm drove to each predicted knob and gripped it
 (gripper stalled at 0.630, as on taught grasps). The wrist calibration is provisional (4.4 px): see MEMORY.md.
 
+### Draw after a re-locate, without snapping the string
+
+When the stylus reaches the edge of the screen the knob can still turn, but it winds the drive string against the
+stop; a few more turns can snap it. Layers, from first to last line of defence:
+
+| Layer | Where | Status |
+|---|---|---|
+| End-stop guard: pen position + growing uncertainty per axis; refuses any move that could end within 5 mm (+ uncertainty) of an edge, the whole drawing checked before anything moves; after a torque stop only backing off | `endstop.py`, `draw_shapes.py` | built, tested on the toy kernel |
+| Slow near edges: within 15 mm of an edge the knob turns in 15 deg steps at 5 deg/s | `endstop.GuardedDrawer`, `RealBackend.speed_dps_override` | built, tested on the toy kernel |
+| Light grip: close to 0.610 (stops at 0.606) instead of squeezing to 1.0, so the fingers can slip first | `gripper.light` in `taught_poses.json` | turns both knobs (2026-11-24); slip point not found yet |
+| Torque backstop: joint 6 stopped above 0.7 Nm | aims-kinova `rotate-torque-guard`, envelope `max_joint_torque_nm` | built; never tripped on the arm, trip untested |
+| Pen measured by the D435 | plan below | not built |
+
+The torque on joint 6 is mostly its own friction (+-0.2 Nm, the same with or without a knob), so the backstop only
+trips at roughly 100 N of string tension: it is a last resort. What protects the string is the guard, and the guard
+is only as good as its pen position. Open loop it starts from a by-eye `--start` (+-5 mm) and grows ~2 % of every mm
+drawn, so it refuses large drawings: a centre-out spiral 60 mm wide is allowed, 84 mm is refused.
+
+**Using the D435 to protect the board and to locate the stylus** (planned): the D435 runs on a Linux laptop (rule 15)
+with `sh scripts/rs_capture.sh serve`; on the Mac `ssh -N -L 8766:127.0.0.1:8766 <user>@<laptop>` makes it reachable
+at localhost:8766 for `real/camera.py` (Harish's PR #1). Screen corners are clicked once per tripod position. After
+each line the drawer grabs a burst; `run_tracker` places the stylus at the tip of the new line (0.2-0.8 mm rms on real
+D435 frames, hand calibration 2026-11-22) and the guard is re-anchored to +-1.5 mm, so the whole screen becomes usable.
+A line that did not grow as the knob turn predicts means the fingers slipped or the stylus is at a stop: the drawer
+then stops like after a torque stop. The wrist camera cannot do this: it saturates on the screen (35-94 % of pixels).
+
+Drawing commands (motion server running with `hardware/envelopes/etch_draw_workspace_10.json`):
+
+```bash
+uv run python scripts/relocate.py auto                       # board + hardware/knob_poses_live.json
+uv run python scripts/draw_shapes.py spiral --size 60 --steps 6 --start 76,52 --poses hardware/knob_poses_live.json --plan
+uv run python scripts/draw_shapes.py spiral --size 60 --steps 6 --start 76,52 --poses hardware/knob_poses_live.json
+```
+
+`spiral` is the centre-out rectangular spiral (`draw.spiral_out`): 6 loops, 60 x 45 mm, 24 lines, ~13 min.
+
 ## Code layout
 
 | Module | What it does |
@@ -196,6 +232,7 @@ Results on 2026-11-24 (green arm): after the toy moved 8.4 cm / 7 deg, both pred
 | `real/wrist_camera.py` | Frame chain base -> tool -> flange -> camera, live wrist frames (RTSP), ChArUco, calibration fits |
 | `real/view_plan.py` | Wrist views of a flat target: safe, reachable, varied, short moves; envelope proposals |
 | `real/view_run.py` | Visit views through the motion server and save frame + arm status |
+| `endstop.py` | End-stop guard (pen position + uncertainty, refuses risky moves) and GuardedDrawer (slow 15 deg steps near edges) |
 | `real/board_model.py` | Toy marker layout, board pose fits, knob grasps relative to the board (learned from hand corrections) |
 
 `hardware/` holds the measurements, the taught knob poses (`taught_poses.json`) and the arm readings they came from
