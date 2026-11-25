@@ -17,6 +17,21 @@ class Calib:
     delta_deg: dict = field(default_factory=lambda: {"x": 13.5, "y": 13.5})
 
 
+class GraspFailed(RuntimeError):
+    """A knob was not gripped or did not turn: the drawing stops (nothing is drawn with the wrist turning in air)."""
+
+
+def grasp_or_stop(robot: Skills, axis: Axis) -> None:
+    if not robot.grasp_knob(axis):
+        raise GraspFailed(f"{axis} knob not gripped (missed, or the toy moved since the last re-locate)")
+
+
+def turn_or_stop(robot: Skills, deg: float) -> None:
+    r = robot.rotate(deg)
+    if not getattr(r, "ok", True):
+        raise GraspFailed(f"knob turn of {deg:+.1f} deg did not happen: {getattr(r, 'note', '')}")
+
+
 class OpenLoopDrawer:
     def __init__(self, robot: Skills, calib: Calib, compensate_backlash: bool = True,
                  preload_margin_deg: float = 10.0):
@@ -31,8 +46,8 @@ class OpenLoopDrawer:
         Leaves a short mark; the drawing is defined to start where the pen ends up.
         """
         for axis in ("x", "y"):
-            self.robot.grasp_knob(axis)
-            self.robot.rotate(2 * self.calib.delta_deg[axis] + self.margin)
+            grasp_or_stop(self.robot, axis)
+            turn_or_stop(self.robot, 2 * self.calib.delta_deg[axis] + self.margin)
             self.last_dir[axis] = 1.0
 
     def move(self, axis: Axis, mm: float) -> None:
@@ -42,8 +57,8 @@ class OpenLoopDrawer:
         deg = mm / self.calib.k_mm_per_deg[axis]
         if self.compensate and s != self.last_dir[axis]:
             deg += s * 2 * self.calib.delta_deg[axis]
-        self.robot.grasp_knob(axis)
-        self.robot.rotate(deg)
+        grasp_or_stop(self.robot, axis)
+        turn_or_stop(self.robot, deg)
         self.last_dir[axis] = s
 
     def draw(self, moves: list[Move]) -> None:
@@ -98,6 +113,21 @@ def staircase(step_mm: float = 8.0, n: int = 5) -> list[Move]:
     """Up a staircase, then straight back down and along the base: a closed outline."""
     up = [m for _ in range(n) for m in (("x", step_mm), ("y", step_mm))]
     return up + [("y", -step_mm * n), ("x", -step_mm * n)]
+
+
+def spiral_out(outer_mm: float = 60.0, loops: int = 6, aspect: float = 0.75) -> list[Move]:
+    """Rectangular spiral from the pen outwards (start in the middle, wind anticlockwise, end at the bottom-left corner).
+
+    One knob at a time, so every line is horizontal or vertical: x +p, y +p*a, x -2p, y -2p*a, x +3p, ... with
+    p = outer_mm / (2 * loops). After `loops` turns the outer box is outer_mm wide and outer_mm * aspect high, centred
+    on the start. 4 * loops lines, each a knob switch.
+    """
+    p = outer_mm / (2 * loops)
+    moves: list[Move] = []
+    for n in range(1, 2 * loops + 1):
+        s = 1.0 if n % 2 else -1.0
+        moves += [("x", s * n * p), ("y", s * n * p * aspect)]
+    return moves
 
 
 def spiral(outer_mm: float = 48.0, pitch_mm: float = 8.0) -> list[Move]:

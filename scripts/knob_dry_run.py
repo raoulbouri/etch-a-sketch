@@ -18,6 +18,8 @@ from etch_sim.real import ArmClient, ArmRefused, RealBackend
 ap = argparse.ArgumentParser()
 ap.add_argument("steps", nargs="*", default=["x:90", "y:-90", "x:360"])
 ap.add_argument("--pause", action="store_true", help="wait for Enter before every arm step")
+ap.add_argument("--poses", default="hardware/taught_poses.json",
+                help="knob poses; hardware/knob_poses_live.json after scripts/relocate.py solve")
 a = ap.parse_args()
 
 
@@ -36,7 +38,7 @@ print("start:", st.get("arm_state"), st["tool_pose"], "gripper", st.get("gripper
 if st.get("arm_state", "ARMSTATE_SERVOING_READY") != "ARMSTATE_SERVOING_READY":
     raise SystemExit(f"arm is {st.get('arm_state')}, not SERVOING_READY. Close the Web App's pose/admittance panel, "
                      "leave the Xbox pad alone (RB then LB resets it), then check with `kinova --json status`.")
-b = RealBackend(c)
+b = RealBackend(c, json.loads(open(a.poses).read()))
 try:
     for step in a.steps:
         axis, deg = step.split(":")

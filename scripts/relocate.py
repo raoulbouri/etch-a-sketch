@@ -5,6 +5,7 @@ the board, from scripts/teach_knobs.py). Only `run` moves the arm, through the m
 approves when starting it); every other step is read-only or offline.
 
     uv run python scripts/relocate.py workspace       # once: survey poses + ONE envelope for the whole board workspace
+    uv run python scripts/relocate.py draw-envelope   # once: drawing envelope (knob poses + turns) for that workspace
     uv run python scripts/relocate.py auto            # server running with that envelope: look -> survey if needed ->
                                                       #   5 views -> solve, in one routine (~30 s)
   or step by step:
@@ -38,6 +39,8 @@ from etch_sim.real import wrist_camera as W
 ROOT = Path(__file__).resolve().parents[1]
 RELOC = ROOT / "test_images" / "relocate"
 APPROACH_M = 0.05                    # approach pose: straight above the grasp
+HANDOVER_Z_M = 0.20                  # above a knob, inside BOTH the re-locate envelope (floor 0.188 m) and the
+                                     # drawing envelope, so demo.py can switch routines without a move outside one
 ROUTINE_FLOOR_M = 0.20               # views keep the tool frame at least this high
 SIDEWAYS_TOL_MM = 3.0               # knob grasp, predicted vs hand-corrected
 HEIGHT_TOL_MM = 5.0                 # hand grasp heights of one knob spread ~4 mm (2026-11-24): height is grip choice
@@ -167,7 +170,28 @@ def solve(a) -> None:
         ok &= not errs
     out["ok"] = bool(ok)
     (s / "result.json").write_text(json.dumps(out, indent=1))
+    if ok:
+        write_live_poses(out, s)
     print(("OK" if ok else "NOT OK (see above)") + f"; saved {s / 'result.json'}")
+
+
+LIVE_POSES = ROOT / "hardware" / "knob_poses_live.json"
+TAUGHT_POSES = ROOT / "hardware" / "taught_poses.json"
+
+
+def write_live_poses(res: dict, s: Path) -> None:
+    """Knob poses of this re-locate in the format RealBackend reads (hardware/taught_poses.json), so draw_shapes.py and
+    knob_dry_run.py can use them with --poses hardware/knob_poses_live.json. Gripper settings and the joint-6 signs come
+    from taught_poses.json: knob clockwise (seen from above) = joint 6 negative on both arms (aims-kinova docs/05)."""
+    base = json.loads(TAUGHT_POSES.read_text())
+    live = {"_comment": "Written by scripts/relocate.py solve: knob poses for the board where it was last re-located. "
+                        "Valid only until the toy moves.",
+            "_source": {"session": str(s.relative_to(ROOT)), "board": res["board"], "date": res["date"]},
+            "knobs": {ax: {"above": k["approach"], "grasp": k["grasp"]} for ax, k in res["knobs"].items()},
+            "gripper": base["gripper"], "j6_deg_per_knob_deg": base["j6_deg_per_knob_deg"],
+            "knob_speed_dps": base.get("knob_speed_dps", 15.0)}
+    LIVE_POSES.write_text(json.dumps(live, indent=2) + "\n")
+    print(f"wrote {LIVE_POSES.relative_to(ROOT)} (use: draw_shapes.py ... --poses {LIVE_POSES.relative_to(ROOT)})")
 
 
 def taught(a) -> None:
@@ -282,6 +306,43 @@ def workspace(a) -> None:
     print(f"envelope {env_path.name}: box_min {env['box_min']} box_max {env['box_max']} tilt <= {env['max_tilt_deg']}")
 
 
+def drawing_envelope(boards: list, st: dict) -> Path:
+    """ONE drawing envelope for the whole workspace: a box around the knob approach and grasp poses of every board
+    placement (3 cm sideways and above, 1.5 cm below the lowest grasp), tool within 5 deg of straight down, joint 6
+    may turn the knobs. Approved once per session; the drawer only ever goes to knob poses inside it."""
+    d, layout, z = model()
+    pts = []
+    for b in boards:
+        for rel in d["grasps"].values():
+            g = B.grasp_in_base(b, rel)
+            pts += [g[:3], g[:2] + [g[2] + APPROACH_M], g[:2] + [HANDOVER_Z_M]]
+    P = np.array(pts)
+    lo, hi = P.min(0) - 0.03, P.max(0) + 0.03
+    lo[2] = P[:, 2].min() - 0.015
+    hi[2] = HANDOVER_Z_M + 0.02          # the handover pose (above a knob, inside the re-locate box too) fits
+    env = {"name": f"etch_draw_workspace_{st['ip'].split('.')[-1]}",
+           "box_min": [round(float(v), 3) for v in lo], "box_max": [round(float(v), 3) for v in hi],
+           "max_lin_speed": 0.05, "max_ang_speed": 30.0, "max_tilt_deg": 5.0, "rotate_joint": 6,
+           "max_rotation_deg": 1800.0, "max_joint_torque_nm": 0.7, "max_step_m": 0.25, "max_commands": 2000,
+           "max_duration_s": 1800.0,
+           "notes": "Etch-a-Sketch drawing (etch-sim RealBackend with hardware/knob_poses_live.json from scripts/relocate.py): "
+                    "knob approach/grasp poses for any board placement in the re-locate workspace, gripper, joint-6 knob turns. "
+                    "Lift the arm out of it between sessions (J2 heats up when parked low)."}
+    path = ROOT / "hardware" / "envelopes" / f"{env['name']}.json"
+    path.write_text(json.dumps(env, indent=2) + "\n")
+    rho = np.hypot(P[:, 0], P[:, 1])
+    print(f"drawing envelope {path.name}: box_min {env['box_min']} box_max {env['box_max']}; knob poses "
+          f"{rho.min():.3f}-{rho.max():.3f} m from the base axis")
+    return path
+
+
+def draw_envelope(a) -> None:
+    """Offline: the drawing envelope for the saved workspace region (survey poses and the re-locate envelope stay as
+    they are)."""
+    ws = json.loads(WORKSPACE_FILE.read_text())
+    drawing_envelope(placements(ws["region"]), W.arm_status())
+
+
 def auto(a) -> None:
     """The whole re-locate in one approved routine: look; if not all 4 markers are seen, go to the survey poses until
     one sees them; plan 5 close views inside the approved envelope; capture; solve."""
@@ -380,13 +441,14 @@ def main() -> None:
     p.add_argument("--yaw-offset", type=float, default=-104.0, help="board yaw minus its azimuth, as placed today (deg)")
     p.add_argument("--yaw-range", type=float, default=20.0, help="+- board rotation allowed (deg)")
     p.add_argument("--rho-max", type=float, default=0.25, help="max tool distance from the base axis (m)")
+    sub.add_parser("draw-envelope", help="offline: drawing envelope for the saved workspace (knob poses, knob turns)")
     p = sub.add_parser("auto", help="look, survey if needed, plan, capture, solve: one approved routine")
     p.add_argument("-n", type=int, default=5)
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--camera-ip", help="wrist camera IP (default: the arm's; set it for a dry run on the fake server)")
     a = ap.parse_args()
     {"sight": sight, "plan": plan, "run": run, "solve": solve, "taught": taught, "compare": compare, "learn": learn,
-     "workspace": workspace, "auto": auto}[a.cmd](a)
+     "workspace": workspace, "draw-envelope": draw_envelope, "auto": auto}[a.cmd](a)
 
 
 if __name__ == "__main__":

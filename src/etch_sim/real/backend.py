@@ -108,6 +108,10 @@ class RealBackend:
         self._theta_z = down_yaw_deg(self.c.call("status")["state"]["tool_pose"])
         self._t0 = time.time()
         self.log: list[dict] = []
+        self.speed_dps_override: float | None = None   # set by GuardedDrawer near the edges (slow, small steps)
+        # light grip: close only to this position (near the knob's contact point) instead of squeezing to 'closed', so
+        # the fingers can slip before the string is loaded. Kortex has no grip-force mode (GRIPPER_FORCE not implemented).
+        self.grip_target: float | None = self.poses.get("gripper", {}).get("light")
 
     @property
     def clock_s(self) -> float:
@@ -134,8 +138,14 @@ class RealBackend:
         self.c.call("gripper", position=grip["pre"])
         self._move(knob["above"])
         self._move(knob["grasp"])
+        # Close fully first: on the knob the fingers stall (~0.63 on the 2026-11-24 toy); with no knob between them
+        # they close to ~1.0. Only this tells a grasp from a miss: a light target alone stops at the target either way
+        # (2026-11-24 a spiral run went on after missing a knob the toy had been shaken away from).
         r = self.c.call("gripper", position=grip["closed"])
         held = "STALLED" in r.get("event", "") and grip["held_min"] <= r["position"] <= grip["held_max"]
+        if held and self.grip_target is not None and self.grip_target < r["position"]:
+            # then ease off to the light grip, so the fingers can slip before the string is loaded
+            r = self.c.call("gripper", position=self.grip_target)
         self.log.append({"t": self.clock_s, "skill": "grasp_knob", "axis": axis, "held": held, "gripper": r.get("position")})
         self._last_axis = axis
         self.n_switches += int(switching)
@@ -143,9 +153,8 @@ class RealBackend:
             self.c.call("gripper", position=grip["pre"])
             self._move(knob["above"])
             return False
-        # A stall leaves the gripper command running, and the arm then fails the next action (rotate: ACTION_ABORT,
-        # abort_details 1, blue arm 2026-11-22). The motion server's gripper ends a stalled command with Base.Stop()
-        # (aims-kinova patch gripper-stall-stop); retargeting the gripper from here did not help.
+        # A held knob turns fine after a stall with no gripper stop (aims-kinova docs/05, green arm 2026-11-24); the
+        # blue arm's early rotate aborts were its 30 deg/s refusal, not the stall.
         self.held = axis
         return True
 
@@ -153,7 +162,7 @@ class RealBackend:
         if self.held is None:
             return RotateResult(deg, 0.0, ok=False, note="no knob held")
         sign = float(self.poses["j6_deg_per_knob_deg"][self.held])
-        r = self.c.call("rotate", deg=deg * sign, speed=self.poses.get("knob_speed_dps"))
+        r = self.c.call("rotate", deg=deg * sign, speed=self.speed_dps_override or self.poses.get("knob_speed_dps"))
         self._theta_z = down_yaw_deg(r["tool_pose"])
         wrist = float(r["rotated_deg"]) / sign
         self._moves.append((self.held, wrist))               # what the wrist turned; the knob may have slipped

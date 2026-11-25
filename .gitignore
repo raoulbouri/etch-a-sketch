@@ -27,3 +27,6 @@ MEMORY.md
 
 # Real-arm run logs (draw_shapes.py writes one JSON per run); photos in draw_runs/ stay tracked
 hardware/draw_runs/*.json
+
+# Knob poses of the last re-locate (scripts/relocate.py solve): valid only for that board placement
+hardware/knob_poses_live.json

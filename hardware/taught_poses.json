@@ -42,7 +42,8 @@
     "pre": 0.45,
     "closed": 1.0,
     "held_min": 0.3,
-    "held_max": 0.9
+    "held_max": 0.9,
+    "light": 0.61
   },
   "j6_deg_per_knob_deg": {
     "x": -1.0,
@@ -51,5 +52,6 @@
   "knob_speed_dps": 15.0,
   "_knob_speed_source": "blue arm 2026-11-22: a 30 deg wrist turn in 1 s (30 dps, the server's 1 s minimum per chunk) is refused (ACTION_ABORT, abort_details 1, no motion); 10 deg in 1 s and 30 deg in 2 s (15 dps) work. The limit lies between 15 and 30 dps average; not narrowed further.",
   "_knobs_source": "computed by scripts/knob_poses.py on 2026-11-22 19:05 from x_closed.json, y_closed.json: spacing 196.6 mm, toy yaw +21.5 deg, lift 0.05 m",
-  "_j6_sign_source": "x knob: joint 6 +10 deg turned the knob counter-clockwise seen from above (blue arm, 2026-11-22), so knob clockwise = joint 6 negative: -1 verified. y knob: -1 verified (y +180 deg moved the pen ~16 mm up off the bottom stop, 2026-11-22)."
+  "_j6_sign_source": "x knob: joint 6 +10 deg turned the knob counter-clockwise seen from above (blue arm, 2026-11-22), so knob clockwise = joint 6 negative: -1 verified. y knob: -1 verified (y +180 deg moved the pen ~16 mm up off the bottom stop, 2026-11-22).",
+  "_gripper_light_source": "green arm 2026-11-24: light grip (close only to 0.610, stops at 0.606; full squeeze stalls at 0.630) turned both knobs +-15 deg reliably at 5 deg/s; 0.620 and 0.627 too. Slip point not yet found (below 0.606). Kortex has no grip-force mode."
 }
