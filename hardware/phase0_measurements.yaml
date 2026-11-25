@@ -33,3 +33,16 @@ camera:
   line_contrast_ok: null
   pen_tip_visible: null
   glare_notes: null
+
+markers:                           # ArUco 4x4_50 stuck on the toy frame, seen from the knob side: 0 TL, 1 TR, 2 BR, 3 BL
+  black_square_mm: 21.6            # ruler 2026-11-24 (designed 22.5; printed at ~96 %, i.e. scaled to fit the page)
+  centre_distances_mm:             # ruler, Raoul 2026-11-24 (board moved to measure)
+    "0-1": 187.5
+    "1-2": 148.5
+    "2-3": 128.0                   # re-measured 2026-11-24 (first reading 149 was off; camera and planar fit gave ~128)
+    "3-0": 148.0
+    "0-2": 215.0
+    "1-3": 212.0
+  knob_to_marker_mm:               # ruler, Raoul 2026-11-24 (toy at the green arm); reference points as Raoul measured them
+    "y_knob-2": 31.0               # right knob to the lower-right marker (id2)
+    "x_knob-3": 35.0               # left knob to the lower-left marker (id3)

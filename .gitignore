@@ -24,3 +24,6 @@ test_images/
 # Update main with scripts/promote_main.sh, which strips them.
 CLAUDE.md
 MEMORY.md
+
+# Real-arm run logs (draw_shapes.py writes one JSON per run); photos in draw_runs/ stay tracked
+hardware/draw_runs/*.json

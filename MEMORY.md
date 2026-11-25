@@ -194,6 +194,83 @@ newest first, timestamped from the system clock).
 - Known cost: connectors join mid-line (T-junctions), so pieces force retrace (3 pieces: 200 mm). Joining at loose
   ends would cut it. Route->picture includes connector ink, so it is reported, not checked.
 
+### Green arm board view and markers (verified 2026-11-24, Raoul)
+- Board markers: ArUco DICT_4X4_50, black squares printed 21.6 mm (designed 22.5; the print was scaled ~96 %), from
+  `scripts/make_marker_sheet.py`. Seen from the knob side: id0 top-left, id1 top-right, id2 bottom-right, id3 bottom-left
+  (id2/id3 sit next to the knobs). Ruler centre distances in `hardware/phase0_measurements.yaml` (planar to 0.5 mm);
+  one wrist frame with 21.6 mm reproduces them within 2 mm, so the Kortex focal length is fine.
+- Green arm tool transform z 0.12 m (read 2026-11-24), same as blue.
+- Wrist-camera board view, green arm (192.168.2.10): joints [-38.01, -50.723, -139.148, 3.737, -63.082, 102.073] deg,
+  tool [0.1225, 0.0634, 0.3037 m, 152.58, 10.89, 137.51 deg]. All 4 markers seen at 50-65 px. Reading in
+  `hardware/arm_readings/20261124_green/board_view.json`; reuse with `kinova move-joints` (motion: needs approval).
+- Green wrist colour intrinsics (Kortex, 1280x720): fx 1297.7, fy 1298.6, cx 620.9, cy 238.3, zero distortion. Focal
+  length confirmed (ruler, and the 20-view joint fit: 1285-1292). The 1920x1080 profile (cy 97) is wrong.
+  CORRECTION (19:04): the earlier "cy 238 is wrong, cy 360 right" rested on assuming the table sits at -1.8 mm in the
+  base frame. The 20-view arm run puts the chart at -15.4 mm in Kortex's base frame consistently (z std 2 mm), and its
+  joint fit lands on cy ~238 with the camera tilted ~3 deg from Kinova's mount model. cy and mount tilt are nearly
+  interchangeable in the images, so which is "right" is open; what matters is the combined chain. Absolute height in
+  the base frame is unverified (13.6 mm off the pad measurement) until a touch/hover test. PLACEHOLDER.
+- Wrist calibration run 2026-11-24 (green arm, `scripts/wrist_calib.py`, session test_images/wrist_calib/20261124-185020):
+  20 views planned by the script and driven through the motion server (envelope hardware/envelopes/wrist_calib_10_20261124.json,
+  approved by Raoul). Joint fit rms 4.0 px (target < 0.5): NOT saved. Chart-only fit rms 1.7 px and fx 1366: the paper
+  chart is not flat (single views miss a plane by up to 2.8 px). Chart printed at 98.7 % (29.6 mm squares).
+  Single-view repeatability of the chart centre in the base frame: std 1.0-2.0 mm, worst 4.8 mm, yaw 0.13 deg.
+- Second run 2026-11-24 19:20 (chart re-taped, plan limited to tool 0.17-0.25 m from the base axis: Raoul says 0.44 m is
+  too far on this table; prefers higher views): 25 moves, 20 views, no refusals. Taping helped little (plane-fit 1.9 -> 1.6 px).
+- PROVISIONAL wrist calibration saved in hardware/wrist_camera_calib.json: both sessions (42 views) in one joint fit with a
+  shared lens + mount: fx 1284.8 fy 1290.8 cx 670.4 cy 242.9, distortion ~0, mount 3.2 mm / 2.3 deg from Kinova's model,
+  chart printed at 98.5 %. Joint rms 4.4 px vs 1.6 px for the chart alone: the extra ~4 px is pose/image disagreement
+  (Kortex absolute accuracy). Our MuJoCo FK is worse (5-8 mm from Kortex, rms 29-41 px): use Kortex's reported pose.
+  Single-view chart repeatability 1.0-2.0 mm std, worst 5 mm. Chart height -15.2 / -12.7 mm vs -1.8 expected: unverified.
+- Hover test 2026-11-24 19:45 (green arm, approved moves; the first try of the approach aborted, ACTION_ABORT, no fault,
+  likely the Xbox pad's manual-control input; the retry worked): tool at (0.2376, 0.1217, 0.0540) straight down over a chart
+  corner the camera chain put at z -11.7 mm. Raoul measured: chart to the OPEN fingertips 46 mm; camera window to table
+  ~20 cm (rough). With the table at -18 mm the open fingertips are ~146 mm below the flange (26 mm beyond the Kortex tool
+  point). Camera-chain chart height (-11.7 to -15.2 mm) vs pad-based -18 mm: 3-6 mm residual, the camera reads high.
+  Caveat: the 2F-85 fingertips move along an arc, so open and closed fingertip heights differ (closed knob grasps fit
+  TOOL_TO_PINCH 0.0358 on the blue arm); do not use the open-fingertip number for grasp height.
+- Height check 2026-11-24 ~20:00 (arm at tool (0.2377, 0.1218, 0.1241), straight down, flange z 0.2441 m in the base
+  frame), Raoul's ruler: table -> camera lens 267 mm (predicted 265 mm with the table at -18 mm, 260 mm with the camera's
+  table estimate); table -> robot base 18 mm (the pad); table -> a ring 180 mm up (~82 mm below the flange: the gripper
+  body bottom, not the wrist ring). CONFIRMED: table at -18 mm in Kortex's base frame (+-2 mm), base origin at the bottom
+  of the base. The wrist-camera chain reads table-level targets 3-6 mm HIGH (-11.7 to -15.2 mm): a known vision bias,
+  on the safe side for clearance. Re-locate idea: a board lying on the table only needs x, y, yaw from the images; its
+  height and tilt are known from the table (toy marker surface = table + 28 mm = +10 mm in the base frame).
+- Board model (green arm, 2026-11-24 ~21:15, hardware/board_model.json, session test_images/teach/20261124-205648):
+  knob grasps hand-taught by Raoul (gripper stalled 0.618 left / 0.583 right; left re-taught after a lift and return:
+  0.1 mm from the first, so the toy had not moved), then 5 planned wrist views (routine board_views_10_20261124,
+  approved; 6 moves, no refusals). Grasps are stored RELATIVE to the board frame (marker centroid, x from id3 to id2),
+  so replay = re-located board * stored grasp (no pad offset needed). Knob spacing 186.5 mm, heights within 2 mm.
+  Fit rms 3.35 px with the camera's own marker height (+20.5 mm in the base frame) vs 8.0 px at the table-based +10 mm;
+  with the fitted height the layout is ~3 % smaller than the ruler (camera scale/height coupling, same chain bias as the
+  provisional calibration). Teach and re-locate share the chain, so the bias should cancel: VERIFY with a moved-toy
+  re-locate plus a hover over each knob. Knob-to-marker centre: left 32.7 mm (ruler 35), right 31.2 mm (ruler 31).
+- FIRST RE-LOCATE TEST (2026-11-24 ~21:40, green arm, scripts/relocate.py): toy moved 8.4 cm and turned 7 deg; sighting +
+  5 planned views (routine relocate_10_20261124_2122, approved; marker 0 was cut off at the image top in all views: the
+  planner used K_GUESS (cy 360) instead of the calibrated cy 243, fixed). Fit 4.1 px. Raoul lowered + closed by hand from
+  5 cm above each predicted grasp: sideways error 0.0 mm on BOTH knobs (grip 0.622 / 0.618 = taught), height -3.3 mm
+  (left) / +0.9 mm (right). Hand grasp heights of one knob spread ~4 mm, no consistent "higher" bias, so height
+  tolerance is 5 mm and grasps are learned: `relocate.py learn` adds each hand correction (in the board frame) and the
+  model uses the per-knob mean; `grip_raise_mm` in board_model.json sets a deliberate offset (default 0).
+- FIRST AUTONOMOUS GRASPS (2026-11-24 ~22:00, green arm): `relocate.py workspace` (3 survey poses + one envelope
+  relocate_workspace_10 for board centre 0.30-0.40 m, azimuth 0-30 deg, yaw +-20 deg) and `relocate.py auto` (look -> survey
+  until the tags are seen -> 5 views inside the envelope -> solve). Toy moved ~5 cm and turned 33 deg (beyond the +-20 deg
+  workspace): start saw 1 tag, surveys saw 2/3/3, views 4/2/4/2/4; fit 5.65 px; 96 s. The arm then went on its own above
+  each predicted knob and straight down to the exact grasp pose; left knob centred (Raoul checked), both closed and stalled
+  at 0.630 (taught 0.583-0.622). Right knob done in one shot (open, lift, above, descend, close).
+- Restart note: after a limp/e-stop restart the green arm sat with joint 3 at -158 deg; Cartesian moves were refused
+  (ACTION_ABORT, INVALID_PARAM) until a joint move brought it back in range. The gripper reported closed (0.996) with
+  the fingers apart until the arm was power-cycled.
+- Planner lesson: a 2 cm move with a ~100 deg wrist turn at 0.19 m from the base axis timed out (30 s); views now keep
+  >= 0.25 m from the base axis, roll relative to the current wrist, and split moves turning > 35 deg.
+- Heights (Raoul, ruler 2026-11-24): toy marker surface ~28 mm above the table (said "2.8"; 28 mm fits the camera);
+  the arm base stands on an 18 mm rubber pad (corrected 19:50; first noted as 1.8 mm), so the table is at about
+  -18 mm in the base frame (taking the base frame origin at the bottom of the base).
+- Camera mount (Kinova gen3_macro.xacro color_module): from the flange (= Kortex tool frame - 0.12 m along tool z)
+  xyz (0, 0.05639, -0.00305) m, rpy (pi, pi, 0), camera z along tool z. Confirmed: board within 3-4 deg of level.
+- ChArUco chart on the table: 8x5 squares, DICT_5X5_100, square 30 mm, marker 22.5 mm (ratio fitted from the image).
+- Harish's knob poses and envelope are for the BLUE arm; they do not apply to the green arm.
+
 ### Open decisions
 - Decided 2026-11-09: bounded-routine approval (a person approves one envelope at the motion server); chunked
   joint 6 moves; a motion server in aims-kinova with etch-sim as client.
@@ -202,6 +279,37 @@ newest first, timestamped from the system clock).
 - Which LLM API for the agent.
 
 ## Log
+### 2026-11-24 22:00 EST | Raoul Bouri (+ Claude)
+- relocate.py auto + workspace (survey fallback, one envelope); first autonomous re-locate + grasps of both knobs succeeded.
+- To do: widen the workspace yaw range (board turned 33 deg), speed up (96 s), more placements, then drawing from here.
+### 2026-11-24 21:45 EST | Raoul Bouri (+ Claude)
+- relocate.py built (sight/plan/run/solve/taught/compare/learn) + board_model.fit_board + view_run; tests pass (64).
+- First moved-toy test: both knobs predicted to 0.0 mm sideways; heights within hand variation. Corrections learned.
+- Next: more placements (shifted, rotated +-25 deg, after a real shake) to test out of sample.
+### 2026-11-24 21:15 EST | Raoul Bouri (+ Claude)
+- Gripper stuck (reported closed, fingers apart) -> Raoul power-cycled; elbow out of range -> joint moves back (approved).
+- Knob grasps taught by hand and recorded read-only; toy-stillness check by lift-and-return (0.1 mm). scripts/teach_knobs.py
+  (view/knob/plan/run/solve) + src/etch_sim/real/board_model.py + tests. 5-view board routine run (approved), board model saved.
+- Next: re-locate command (5 views -> board x, y, yaw -> both knob grasps) and a moved-toy validation with a hover per knob.
+### 2026-11-24 19:25 EST | Raoul Bouri (+ Claude)
+- E-stop fault found after taping (EMERGENCY_STOP_ACTIVATED); Raoul released it, clear-faults (approved) -> ready.
+- Planner got a max tool radius (--rho-max, default 0.25 m) and higher views (camera 40-60 cm). Approved move-in plus a
+  second routine: 25 moves, 20 views, no refusals. Combined two-session fit saved as PROVISIONAL calibration.
+- Next: board re-locate from 1-3 wrist frames of the toy markers (repeatability ~1-2 mm per frame); a hover test to settle
+  absolute height; flatter or rigid chart if a better lens fit is needed.
+### 2026-11-24 19:04 EST | Raoul Bouri (+ Claude)
+- Built wrist-camera calibration: src/etch_sim/real/wrist_camera.py (frame chain, RTSP grabber, ChArUco, joint fit),
+  view_plan.py (views from one sighting: safe, reachable, diverse, short moves), scripts/wrist_calib.py
+  (capture/plan/run/solve); tests pass. First arm run: move 1 timed out (wrist turn near the base), routine ended,
+  planner fixed. Second run (approved): 27 moves, 20 views, no refusals.
+- Result not good enough to save (joint rms 4 px): paper chart not flat; absolute height 13.6 mm off the pad
+  assumption. Repeatability 1-2 mm per view. Next: chart glued flat on a rigid board, rerun (~3 min); hover test.
+### 2026-11-24 17:39 EST | Raoul Bouri (+ Claude)
+- PR #3 (Harish, knob poses + first real square) merged into dev as bd72d39; local dev pulled; 54 tests pass.
+- Markers stuck on the toy (layout in Facts). Green arm placed by Raoul for a wrist-camera view of the whole board;
+  state saved (read-only) as the reusable board view. One wrist frame over RTSP: all 4 markers detected
+  (test_images/wrist/20261124-173925/). RealSense frame not taken on the Mac (rule 15).
+- Next: plan Stage A (board pose in the base frame from the wrist camera) with Raoul before building.
 ### 2026-11-22 21:45 EST | Harish Bhamitipadi Magesh (+ Claude)
 - Correction to 21:26 entry: the aims-kinova changes are now committed locally on branch harish/rotate-fixes (bff79a7, on
   7d0dab2; docstrings say the gripper Stop is a precaution). Push refused: HBMatic has no write access to
@@ -342,6 +450,20 @@ newest first, timestamped from the system clock).
 - Linux laptop setup for the hand knob calibration (Ubuntu 22.04, kernel 6.8): `dev` checked out, `uv sync --group
   realsense` (pyrealsense2 2.59.1), `MUJOCO_GL=egl uv run pytest -q`: 23 pass. D435 (fw 5.17.0.10, USB 2.1) is listed
   by pyrealsense2 without Intel's udev rules installed. Next: grab, corner pick, then `hand_calibrate.py x` and `y`.
+### 2026-11-22 11:55 EST | Raoul Bouri (+ Claude)
+- Blue arm: started IN_FAULT (left from last e-stop), Raoul restarted it -> SERVOING_READY. He then placed the gripper
+  closed on the LEFT knob with the Xbox controller; the arm went IN_FAULT again there. Fault bank: base
+  EMERGENCY_STOP_ACTIVATED (0x800000), no actuator faults; Raoul did not press the e-stop (bumped or not fully released?).
+- Saved left-knob grasp to hardware/taught_poses.json: tool [0.3361, 0.1225, 0.0529 m, -175.38, 2.12, 107.60 deg],
+  joints [-21.07, 34.97, -118.83, 1.70, -30.97, 84.38], gripper 0.6974 (stalled on knob: inside held_min..max).
+- Model FK vs blue-arm read-backs: 8.5 mm (knob pose) and 9.9 mm (retracted), mostly along x; same size as green (6-11 mm).
+- `kinova clear-faults` (approved) restored SERVOING; pose unchanged. Then `kinova gripper 0.45` (approved) did NOT
+  open: STALLED at 0.693 (from 0.697) while opening. Lift not run (would pull the knob). `kinova stop` sent. Cause
+  unknown: fingers jammed, or gripper not re-enabled after the e-stop, or the Xbox controller holding the gripper
+  (arm state SERVOING_MANUALLY_CONTROLLED).
+- Raoul then hit the e-stop; after a restart the gripper opened (knob released) and the arm was folded near
+  rest; `kinova home` (approved) reached Home within 0.04 deg. Left-knob grasp saved; right knob not taught yet.
+  No knob rotations done (Raoul: none until he says). Watch the e-stop cable: the first trip was likely a bump.
 ### 2026-11-12 18:37 EST | Raoul Bouri (+ Claude)
 - Reverted the macOS AVFoundation camera path (avcam.py, cam_grab.py removed; imageio-ffmpeg back to dev deps).
   Back to librealsense, but on Linux only: Raoul or a teammate will calibrate on a non-macOS laptop.

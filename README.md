@@ -154,6 +154,29 @@ grasp) takes about 10 s, 180 deg of knob moved the pen about 15-16 mm on both ax
 Not yet run on the arm: triangle, circle, planner pictures, erase, and any camera feedback. Size errors are by eye so
 far; a square-on photo or a D435 frame is needed for a real number.
 
+### Find the board and its knobs with the wrist camera (green arm)
+
+After the toy is moved or shaken, the arm finds it again with its wrist camera and computes both knob grasps, with
+no hand-guiding. The toy carries 4 ArUco markers (DICT_4X4_50, ids 0 top-left, 1 top-right, 2 bottom-right, 3
+bottom-left seen from the knob side; print `hardware/aruco_markers_30mm_*.pdf` at 100 %). It lies flat on the table,
+so only its x, y and rotation change; knob grasps are stored relative to the markers and follow them.
+
+| When | Command | What it does |
+|---|---|---|
+| once per arm | `scripts/wrist_calib.py plan / run / solve --save` | wrist camera lens + mount from a ChArUco chart on the table -> `hardware/wrist_camera_calib.json` |
+| once per toy | `scripts/teach_knobs.py knob x`, `knob y`, `plan`, `run`, `solve --save` | you close the gripper on each knob by hand (read-only), 5 wrist views -> `hardware/board_model.json` |
+| once per session | `scripts/relocate.py workspace` | survey poses + one envelope for where the board may sit -> `hardware/envelopes/relocate_workspace_*.json` |
+| after every shake | `scripts/relocate.py auto` | look; if not all 4 markers are seen, survey poses; 5 views; board pose; both knob grasp + approach poses |
+| optional | `scripts/relocate.py taught x` / `compare` / `learn` | record a hand-corrected grasp, compare with the prediction, add it to the model (averaged per knob) |
+
+`plan`, `workspace` and `solve` move nothing. `run` and `auto` move the arm only through the motion server, started
+with the envelope the planner wrote, which a person approves. Views keep the tool within 0.25 m of the base axis.
+
+Results on 2026-11-24 (green arm): after the toy moved 8.4 cm / 7 deg, both predicted grasps matched hand grasps to
+0.0 mm sideways (heights within the 4 mm spread of hand grasps). After a 5 cm / 33 deg move with one marker in view,
+`auto` found the board through the survey poses (96 s), and the arm drove to each predicted knob and gripped it
+(gripper stalled at 0.630, as on taught grasps). The wrist calibration is provisional (4.4 px): see MEMORY.md.
+
 ## Code layout
 
 | Module | What it does |
@@ -170,9 +193,15 @@ far; a square-on photo or a D435 frame is needed for a real number.
 | `mj/` | 6-DoF Gen3 generated from Kinova's xacro, toy model, scene, IK, MuJoCo skills backend |
 | `real/backend.py` | Client of the aims-kinova motion server |
 | `real/knob_poses.py` | Knob approach/grasp poses from two hand-guided arm readings; safety, envelope and IK checks |
+| `real/wrist_camera.py` | Frame chain base -> tool -> flange -> camera, live wrist frames (RTSP), ChArUco, calibration fits |
+| `real/view_plan.py` | Wrist views of a flat target: safe, reachable, varied, short moves; envelope proposals |
+| `real/view_run.py` | Visit views through the motion server and save frame + arm status |
+| `real/board_model.py` | Toy marker layout, board pose fits, knob grasps relative to the board (learned from hand corrections) |
 
 `hardware/` holds the measurements, the taught knob poses (`taught_poses.json`) and the arm readings they came from
-(`arm_readings/`), the scene camera's screen corners, and logs and photos of real-arm drawings (`draw_runs/`).
+(`arm_readings/`), the scene camera's screen corners, photos of real-arm drawings (`draw_runs/`; run logs stay local),
+the wrist camera calibration, the board model, the re-locate workspace and the motion envelopes people approved
+(`envelopes/`).
 
 ## Placeholders
 
