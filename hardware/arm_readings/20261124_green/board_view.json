@@ -1,0 +1,22 @@
+{
+  "ip": "192.168.2.10",
+  "arm_state": "ARMSTATE_SERVOING_READY",
+  "servoing_mode": "SINGLE_LEVEL_SERVOING",
+  "joint_angles_deg": [
+    -38.01,
+    -50.723,
+    -139.148,
+    3.737,
+    -63.082,
+    102.073
+  ],
+  "tool_pose": {
+    "x": 0.1225,
+    "y": 0.0634,
+    "z": 0.3037,
+    "theta_x": 152.5832,
+    "theta_y": 10.8909,
+    "theta_z": 137.5146
+  },
+  "gripper": 0.0087
+}

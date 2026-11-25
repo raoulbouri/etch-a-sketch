@@ -11,7 +11,7 @@ against one skill interface (`src/etch_sim/interface.py`) with three backends:
 |---|---|---|
 | Toy kernel (`kernel.py`, `kernel_backend.py`) | done | planner and agent tests in milliseconds, with fault injection |
 | MuJoCo (`src/etch_sim/mj/`) | done, except erase | grasping, reach, cameras, timing |
-| Real arm (`src/etch_sim/real/`) | built; tested only against a simulated arm server | hardware |
+| Real arm (`src/etch_sim/real/`) | base test passed on the blue arm (2026-11-22): both knobs grasped and turned, 30 mm square drawn open loop | hardware |
 
 ## Simulation
 
@@ -48,6 +48,7 @@ Simulation (writes to `out/`, which git ignores):
 uv run python scripts/s0_demo.py      # toy kernel: calibrate, erase, draw
 uv run python scripts/s1_demo.py      # MuJoCo scene: cameras, markers, live screen
 uv run python scripts/s2_demo.py      # arm turns the knobs, camera calibration, open-loop square (~30 s)
+uv run python scripts/s3_demo.py      # image -> route planner, drawn on the toy kernel; --image my.png --budget 600
 uv run python scripts/make_video.py   # video of the arm drawing; --shape square|staircase|spiral (~90 s)
 uv run python scripts/fit_hand_measurements.py hardware/x_sweep.csv   # fit mm/deg and backlash from hand data
 ```
@@ -109,9 +110,125 @@ During each capture keep hands and shadows off the screen and do not bump the to
 Expected accuracy (from simulated camera sessions): mm per degree to about 1%; backlash to about 5-8 deg,
 because a hand turn rarely ends exactly on the mark. Precise backlash will come from the arm later.
 
-Real arm: all motion goes through the motion server in the aims-kinova repo, inside a motion envelope that a
-person approves when starting it. A refused or failed motion raises `ArmRefused`; nothing retries. Knob poses
-are taught with `scripts/teach_pose.py` into `hardware/taught_poses.json`.
+### Real arm
+
+All motion goes through the motion server in the aims-kinova repo (branch `etch-bounded-routine`), inside a
+motion envelope that a person approves when starting it. A refused or failed motion raises `ArmRefused` and ends the
+routine; nothing retries. Restart the server to start a new routine.
+
+Setup used for the blue arm (192.168.2.9, laptop on Ethernet at 192.168.2.20/24):
+- The server ran natively on Windows (Python 3.10 venv in aims-kinova; see MEMORY.md for the install), with the
+  envelope `hardware/envelopes/etch_draw_blue_20261122.json` (box from `scripts/knob_poses.py`, valid only while the toy stays taped where it is).
+- aims-kinova needs one fix, waiting for Raoul's review (PR from the fork HBMatic/aims-kinova, branch
+  `harish/rotate-fixes`): `rotate` uses a duration constraint (the arm refuses the speed constraint). The same branch
+  has the gripper send a Stop after stalling, a precaution not shown to be needed.
+- One controller at a time: close the Web App's admittance panel and leave the Xbox pad alone; scripts refuse to start
+  unless the arm reports `ARMSTATE_SERVOING_READY`.
+
+Knob poses: taught with `scripts/teach_pose.py`, or computed from two readings taken with the gripper closed on each
+knob in Cartesian admittance: `uv run python scripts/knob_poses.py x.json y.json [--write]` -> `hardware/taught_poses.json`
+(approach and grasp poses, gripper positions, knob direction signs, knob speed).
+
+Commands (from this folder, server running in another window):
+
+```bash
+uv run python scripts/knob_dry_run.py x:30 --pause     # grasp, turn, release one knob; + = clockwise from above
+uv run python scripts/draw_shapes.py square --size 30 --start 14,14 --plan    # knob degrees and time, no arm
+uv run python scripts/draw_shapes.py square --size 30 --start 14,14 --pause   # draw; Enter before each line
+```
+
+`--start` is the pen's position in mm from the screen's left and bottom edges (by eye); shapes that would come within
+5 mm of an end stop are refused, because driving into a stop can snap the string. Shapes: square, rectangle, triangle
+(staircase), circle (staircase through a circle), and `picture --image house|circle|heart|pieces|file.png --budget 600`
+for a route from the S3 planner. Each run's log goes to `hardware/draw_runs/`.
+
+Base test, 2026-11-22: the pen was moved off the bottom-left corner (`knob_dry_run.py x:170 y:160`), then a 30 mm
+square was drawn open loop. It closes, and the sides measure about 27-30 mm from this angled photo (the toy is turned
+sideways: screen right is down in the photo):
+
+![30 mm square drawn by the arm](hardware/draw_runs/20261122_square30.jpg)
+
+Measured on the arm: the wrist turns the knobs at up to 15 deg/s (30 deg in 1 s is refused), a knob switch (release and
+grasp) takes about 10 s, 180 deg of knob moved the pen about 15-16 mm on both axes (as the hand calibration predicts).
+
+Not yet run on the arm: triangle, circle, planner pictures, erase, and any camera feedback. Size errors are by eye so
+far; a square-on photo or a D435 frame is needed for a real number.
+
+### Find the board and its knobs with the wrist camera (green arm)
+
+After the toy is moved or shaken, the arm finds it again with its wrist camera and computes both knob grasps, with
+no hand-guiding. The toy carries 4 ArUco markers (DICT_4X4_50, ids 0 top-left, 1 top-right, 2 bottom-right, 3
+bottom-left seen from the knob side; print `hardware/aruco_markers_30mm_*.pdf` at 100 %). It lies flat on the table,
+so only its x, y and rotation change; knob grasps are stored relative to the markers and follow them.
+
+| When | Command | What it does |
+|---|---|---|
+| once per arm | `scripts/wrist_calib.py plan / run / solve --save` | wrist camera lens + mount from a ChArUco chart on the table -> `hardware/wrist_camera_calib.json` |
+| once per toy | `scripts/teach_knobs.py knob x`, `knob y`, `plan`, `run`, `solve --save` | you close the gripper on each knob by hand (read-only), 5 wrist views -> `hardware/board_model.json` |
+| once per session | `scripts/relocate.py workspace` | survey poses + one envelope for where the board may sit -> `hardware/envelopes/relocate_workspace_*.json` |
+| after every shake | `scripts/relocate.py auto` | look; if not all 4 markers are seen, survey poses; 5 views; board pose; both knob grasp + approach poses |
+| optional | `scripts/relocate.py taught x` / `compare` / `learn` | record a hand-corrected grasp, compare with the prediction, add it to the model (averaged per knob) |
+
+`plan`, `workspace` and `solve` move nothing. `run` and `auto` move the arm only through the motion server, started
+with the envelope the planner wrote, which a person approves. Views keep the tool within 0.25 m of the base axis.
+
+Results on 2026-11-24 (green arm): after the toy moved 8.4 cm / 7 deg, both predicted grasps matched hand grasps to
+0.0 mm sideways (heights within the 4 mm spread of hand grasps). After a 5 cm / 33 deg move with one marker in view,
+`auto` found the board through the survey poses (96 s), and the arm drove to each predicted knob and gripped it
+(gripper stalled at 0.630, as on taught grasps). The wrist calibration is provisional (4.4 px): see MEMORY.md.
+
+### Draw after a re-locate, without snapping the string
+
+When the stylus reaches the edge of the screen the knob can still turn, but it winds the drive string against the
+stop; a few more turns can snap it. Layers, from first to last line of defence:
+
+| Layer | Where | Status |
+|---|---|---|
+| End-stop guard: pen position + growing uncertainty per axis; refuses any move that could end within 5 mm (+ uncertainty) of an edge, the whole drawing checked before anything moves; after a torque stop only backing off | `endstop.py`, `draw_shapes.py` | built, tested on the toy kernel |
+| Slow near edges: within 15 mm of an edge the knob turns in 15 deg steps at 5 deg/s | `endstop.GuardedDrawer`, `RealBackend.speed_dps_override` | built, tested on the toy kernel |
+| Light grip: close to 0.610 (stops at 0.606) instead of squeezing to 1.0, so the fingers can slip first | `gripper.light` in `taught_poses.json` | turns both knobs (2026-11-24); slip point not found yet |
+| Torque backstop: joint 6 stopped above 0.7 Nm | aims-kinova `rotate-torque-guard`, envelope `max_joint_torque_nm` | built; never tripped on the arm, trip untested |
+| Pen measured by the D435 | plan below | not built |
+
+The torque on joint 6 is mostly its own friction (+-0.2 Nm, the same with or without a knob), so the backstop only
+trips at roughly 100 N of string tension: it is a last resort. What protects the string is the guard, and the guard
+is only as good as its pen position. Open loop it starts from a by-eye `--start` (+-5 mm) and grows ~2 % of every mm
+drawn, so it refuses large drawings: a centre-out spiral 60 mm wide is allowed, 84 mm is refused.
+
+**Using the D435 to protect the board and to locate the stylus** (planned): the D435 runs on a Linux laptop (rule 15)
+with `sh scripts/rs_capture.sh serve`; on the Mac `ssh -N -L 8766:127.0.0.1:8766 <user>@<laptop>` makes it reachable
+at localhost:8766 for `real/camera.py` (Harish's PR #1). Screen corners are clicked once per tripod position. After
+each line the drawer grabs a burst; `run_tracker` places the stylus at the tip of the new line (0.2-0.8 mm rms on real
+D435 frames, hand calibration 2026-11-22) and the guard is re-anchored to +-1.5 mm, so the whole screen becomes usable.
+A line that did not grow as the knob turn predicts means the fingers slipped or the stylus is at a stop: the drawer
+then stops like after a torque stop. The wrist camera cannot do this: it saturates on the screen (35-94 % of pixels).
+
+Drawing commands (motion server running with `hardware/envelopes/etch_draw_workspace_10.json`):
+
+```bash
+uv run python scripts/relocate.py auto                       # board + hardware/knob_poses_live.json
+uv run python scripts/draw_shapes.py spiral --size 60 --steps 6 --start 76,52 --poses hardware/knob_poses_live.json --plan
+uv run python scripts/draw_shapes.py spiral --size 60 --steps 6 --start 76,52 --poses hardware/knob_poses_live.json
+```
+
+`spiral` is the centre-out rectangular spiral (`draw.spiral_out`): 6 loops, 60 x 45 mm, 24 lines. Each grasp closes
+fully first (a stall at ~0.63 means the knob is there, a full close means it is not) and then eases to the light grip;
+any failed grasp or turn stops the drawing. Re-locate after every erase or bump: shaking moves the toy.
+
+### Demo: re-locate and draw in one command
+
+```bash
+uv run python scripts/demo.py spiral --size 60 --steps 6 --start 86,52 --dry-run   # checks only, no motion
+uv run python scripts/demo.py spiral --size 60 --steps 6 --start 86,52             # the demo
+```
+
+Run it in an interactive terminal on the Mac, with the arm parked inside the re-locate envelope (where the demo also
+ends) and the Xbox pad unplugged. It starts the motion server twice and **you type `yes` to each envelope**:
+`relocate_workspace_10` (look, survey if needed, 5 views, knob poses), then a handover pose above the left knob at
+z 0.20 m that lies inside both envelopes, then `etch_draw_workspace_10` with knobs at 30 deg/s
+(`KINOVA_ROTATE_MAX_DPS`, green arm) for `draw_shapes.py`, then park at z 0.20 m. `--start` is the pen's position by
+eye; shaking does not move it. Green arm, 2026-11-24: a 60 mm spiral after a 4 cm / 13 deg shake drew all 24 lines in
+10.5 min (306 commands, no refusals, peak joint-6 torque 0.64 Nm against the 0.70 Nm backstop).
 
 ## Code layout
 
@@ -123,18 +240,29 @@ are taught with `scripts/teach_pose.py` into `hardware/taught_poses.json`.
 | `calibration.py`, `draw.py`, `scoring.py` | Back-and-forth calibration sweep and fit; open-loop drawer; chamfer score |
 | `perception.py` | ArUco board localisation, rectification, line mask and pen tracking (simulation) |
 | `sketch_extract.py` | Line extraction for real camera images |
+| `planner.py` | Image to one continuous knob route: grid, joined pieces, retrace, straight-first Euler path, time budget |
 | `turn_measure.py` | Full-turn calibration plan and fit; line-end helpers |
 | `run_tracker.py` | Pen tracking over a whole run (real camera): ignores lines from before the run, lines that later disappear, and lines where the pen cannot be |
 | `mj/` | 6-DoF Gen3 generated from Kinova's xacro, toy model, scene, IK, MuJoCo skills backend |
 | `real/backend.py` | Client of the aims-kinova motion server; scene camera through clicked corners or ArUco |
 | `real/camera.py` | Client of the RealSense camera server (`scripts/rs_server.py`): a burst of frames per capture |
+| `real/knob_poses.py` | Knob approach/grasp poses from two hand-guided arm readings; safety, envelope and IK checks |
+| `real/wrist_camera.py` | Frame chain base -> tool -> flange -> camera, live wrist frames (RTSP), ChArUco, calibration fits |
+| `real/view_plan.py` | Wrist views of a flat target: safe, reachable, varied, short moves; envelope proposals |
+| `real/view_run.py` | Visit views through the motion server and save frame + arm status |
+| `endstop.py` | End-stop guard (pen position + uncertainty, refuses risky moves) and GuardedDrawer (slow 15 deg steps near edges) |
+| `real/board_model.py` | Toy marker layout, board pose fits, knob grasps relative to the board (learned from hand corrections) |
 
-`hardware/` holds the measurement template, taught-pose template and the scene camera's screen corners.
+`hardware/` holds the measurements, the taught knob poses (`taught_poses.json`) and the arm readings they came from
+(`arm_readings/`), the scene camera's screen corners, photos of real-arm drawings (`draw_runs/`; run logs stay local),
+the wrist camera calibration, the board model, the re-locate workspace and the motion envelopes people approved
+(`envelopes/`).
 
 ## Placeholders
 
-Toy and timing numbers are guesses until measured on the real toy: mm per knob degree, backlash, string snap,
-the erase model, switch time and knob speed, toy dimensions, camera field of view and mounts. They are marked
+Some toy and timing numbers are still guesses: string snap, the erase model, toy dimensions, camera field of view
+and mounts. Mm per knob degree and backlash are measured by hand (`kernel.ToyParams`); knob speed and switch time are
+measured on the arm but the planner and toy backend still use their placeholders. They are marked
 `PLACEHOLDER` in the code; measurements go in `hardware/phase0_measurements.yaml`.
 
 ## Branches

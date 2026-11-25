@@ -1,0 +1,135 @@
+{
+ "frame": "origin at the centroid of the 4 marker centres; x from marker 3 to marker 2; z up",
+ "marker_m": 0.0216,
+ "dictionary": "DICT_4X4_50",
+ "markers_mm_deg": {
+  "0": [
+   -91.32,
+   69.58,
+   0.81
+  ],
+  "1": [
+   91.06,
+   71.63,
+   2.96
+  ],
+  "2": [
+   61.49,
+   -70.61,
+   0.64
+  ],
+  "3": [
+   -61.24,
+   -70.61,
+   -2.59
+  ]
+ },
+ "marker_surface_z_m_when_taught": 0.0205298617893006,
+ "knob_grasps_in_board": {
+  "x": {
+   "t_m": [
+    -0.09381,
+    -0.07376,
+    0.03497
+   ],
+   "rotvec": [
+    -0.357413,
+    3.121128,
+    -0.000225
+   ]
+  },
+  "y": {
+   "t_m": [
+    0.0925,
+    -0.07132,
+    0.03297
+   ],
+   "rotvec": [
+    -2.294664,
+    2.138261,
+    -0.004076
+   ]
+  }
+ },
+ "session": "test_images/teach/20261124-205648",
+ "views": 5,
+ "rms_px": 3.35489650534171,
+ "arm": "192.168.2.10",
+ "date": "2026-11-24 21:13",
+ "grasp_samples": {
+  "x": [
+   {
+    "t_m": [
+     -0.09381,
+     -0.07376,
+     0.03497
+    ],
+    "rotvec": [
+     -0.357413,
+     3.121128,
+     -0.000225
+    ],
+    "source": "teach"
+   },
+   {
+    "t_m": [
+     -0.0938,
+     -0.07381,
+     0.03167
+    ],
+    "rotvec": [
+     -0.357492,
+     3.121028,
+     -0.000535
+    ],
+    "source": "relocate 20261124-212230"
+   }
+  ],
+  "y": [
+   {
+    "t_m": [
+     0.0925,
+     -0.07132,
+     0.03297
+    ],
+    "rotvec": [
+     -2.294664,
+     2.138261,
+     -0.004076
+    ],
+    "source": "teach"
+   },
+   {
+    "t_m": [
+     0.09249,
+     -0.07133,
+     0.03387
+    ],
+    "rotvec": [
+     -2.294885,
+     2.138256,
+     -0.004282
+    ],
+    "source": "relocate 20261124-212230"
+   }
+  ]
+ },
+ "grip_raise_mm": 0.0,
+ "screen_in_board_mm": {
+  "x_min_mm": -75.2,
+  "x_max_mm": 77.3,
+  "y_min_mm": -51.9,
+  "y_max_mm": 51.4,
+  "frame": "visible screen window in the board frame (axis-aligned), from teach views 00/01/02/04 rectified at the marker surface; drawable area 153 x 107 mm nominal",
+  "spread_mm": {
+   "left": 2.9,
+   "right": 1.3,
+   "bottom": 0.8,
+   "top": 1.8
+  },
+  "size_mm": [
+   152.5,
+   103.3
+  ]
+ }
+}

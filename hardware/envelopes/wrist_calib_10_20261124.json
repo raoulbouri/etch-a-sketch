@@ -1,0 +1,22 @@
+{
+  "name": "wrist_calib_10_20261124",
+  "box_min": [
+    -0.086,
+    -0.169,
+    0.114
+  ],
+  "box_max": [
+    0.285,
+    0.286,
+    0.462
+  ],
+  "max_lin_speed": 0.05,
+  "max_ang_speed": 30.0,
+  "max_tilt_deg": 47.0,
+  "rotate_joint": 6,
+  "max_rotation_deg": 1.0,
+  "max_step_m": 0.25,
+  "max_commands": 60,
+  "max_duration_s": 900.0,
+  "notes": "Wrist-camera calibration views of the ChArUco chart on the table (etch-sim scripts/wrist_calib.py plan, session 20261124-191252). Camera only: no gripper or knob commands. Valid for this chart placement."
+}

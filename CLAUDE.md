@@ -101,6 +101,16 @@ sh scripts/rs_capture.sh serve                   # terminal 1: camera server for
 uv run python scripts/hand_calibrate.py x --save # terminal 2: then `y --save`; writes phase0_measurements.yaml
 ```
 
+Wrist camera and board re-locate (green arm; README "Find the board and its knobs"). Only `run` and `auto` move the arm,
+through the aims-kinova motion server started with the envelope the planner wrote and a person approved:
+
+```bash
+uv run python scripts/wrist_calib.py plan|run|solve   # wrist camera calibration (ChArUco), once per arm
+uv run python scripts/teach_knobs.py knob x|y; plan; run; solve --save   # board model, once per toy
+uv run python scripts/relocate.py workspace           # survey poses + one envelope, approve once per session
+uv run python scripts/relocate.py auto                # after every shake: find board -> knob grasp poses
+```
+
 `out/` and `test_images/` are ignored by git. Python 3.12, dependencies in `pyproject.toml`.
 
 ## Conventions
