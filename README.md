@@ -244,7 +244,8 @@ eye; shaking does not move it. Green arm, 2026-11-24: a 60 mm spiral after a 4 c
 | `turn_measure.py` | Full-turn calibration plan and fit; line-end helpers |
 | `run_tracker.py` | Pen tracking over a whole run (real camera): ignores lines from before the run, lines that later disappear, and lines where the pen cannot be |
 | `mj/` | 6-DoF Gen3 generated from Kinova's xacro, toy model, scene, IK, MuJoCo skills backend |
-| `real/backend.py` | Client of the aims-kinova motion server |
+| `real/backend.py` | Client of the aims-kinova motion server; scene camera through clicked corners or ArUco |
+| `real/camera.py` | Client of the RealSense camera server (`scripts/rs_server.py`): a burst of frames per capture |
 | `real/knob_poses.py` | Knob approach/grasp poses from two hand-guided arm readings; safety, envelope and IK checks |
 | `real/wrist_camera.py` | Frame chain base -> tool -> flange -> camera, live wrist frames (RTSP), ChArUco, calibration fits |
 | `real/view_plan.py` | Wrist views of a flat target: safe, reachable, varied, short moves; envelope proposals |
