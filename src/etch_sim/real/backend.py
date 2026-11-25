@@ -138,11 +138,14 @@ class RealBackend:
         self.c.call("gripper", position=grip["pre"])
         self._move(knob["above"])
         self._move(knob["grasp"])
-        r = self.c.call("gripper", position=self.grip_target if self.grip_target is not None else grip["closed"])
-        # A full squeeze (1.0) stalls on the knob. A light grip (target near the knob's contact point, ~0.63 on the
-        # 2026-11-24 toy) may stop AT its target instead: then the position alone tells whether the knob is held.
-        held = grip["held_min"] <= r["position"] <= grip["held_max"] and (
-            "STALLED" in r.get("event", "") or self.grip_target is not None)
+        # Close fully first: on the knob the fingers stall (~0.63 on the 2026-11-24 toy); with no knob between them
+        # they close to ~1.0. Only this tells a grasp from a miss: a light target alone stops at the target either way
+        # (2026-11-24 a spiral run went on after missing a knob the toy had been shaken away from).
+        r = self.c.call("gripper", position=grip["closed"])
+        held = "STALLED" in r.get("event", "") and grip["held_min"] <= r["position"] <= grip["held_max"]
+        if held and self.grip_target is not None and self.grip_target < r["position"]:
+            # then ease off to the light grip, so the fingers can slip before the string is loaded
+            r = self.c.call("gripper", position=self.grip_target)
         self.log.append({"t": self.clock_s, "skill": "grasp_knob", "axis": axis, "held": held, "gripper": r.get("position")})
         self._last_axis = axis
         self.n_switches += int(switching)
@@ -150,9 +153,8 @@ class RealBackend:
             self.c.call("gripper", position=grip["pre"])
             self._move(knob["above"])
             return False
-        # A stall leaves the gripper command running, and the arm then fails the next action (rotate: ACTION_ABORT,
-        # abort_details 1, blue arm 2026-11-22). The motion server's gripper ends a stalled command with Base.Stop()
-        # (aims-kinova patch gripper-stall-stop); retargeting the gripper from here did not help.
+        # A held knob turns fine after a stall with no gripper stop (aims-kinova docs/05, green arm 2026-11-24); the
+        # blue arm's early rotate aborts were its 30 deg/s refusal, not the stall.
         self.held = axis
         return True
 

@@ -182,3 +182,29 @@ def test_light_grip_that_closes_on_nothing_is_not_held(rig):
     poses = json.loads(json.dumps(POSES))
     poses["gripper"]["light"] = 0.95                         # outside held_max 0.90: fingers met, nothing between
     assert not RealBackend(client, poses).grasp_knob("x")
+
+
+def test_light_grip_still_detects_a_missing_knob(rig):
+    """2026-11-24: the toy had been shaken away from the knob poses; a light-grip target alone stopped at the target
+    and counted as held. Closing fully first tells a knob (stall ~0.62) from nothing (closes to 1.0)."""
+    srv, client = rig
+    srv.knob_present = False
+    poses = json.loads(json.dumps(POSES))
+    poses["gripper"]["light"] = 0.61
+    b = RealBackend(client, poses)
+    assert not b.grasp_knob("x")
+    srv.knob_present = True
+    srv.calls.clear()
+    assert b.grasp_knob("x")
+    closes = [c["position"] for c in srv.calls if c["cmd"] == "gripper"]
+    assert closes[-2:] == [1.0, 0.61]                        # full close detects the knob, then ease to the light grip
+
+
+def test_drawer_stops_on_a_missed_knob_without_turning(rig):
+    from etch_sim.draw import Calib, GraspFailed, OpenLoopDrawer, square
+    srv, client = rig
+    srv.knob_present = False
+    b = RealBackend(client, POSES)
+    with pytest.raises(GraspFailed, match="not gripped"):
+        OpenLoopDrawer(b, Calib()).draw(square(10.0))
+    assert not [c for c in srv.calls if c["cmd"] == "rotate"]   # no knob turn was sent

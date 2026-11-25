@@ -26,12 +26,13 @@ from pathlib import Path
 import numpy as np
 
 from etch_sim.draw import Calib, OpenLoopDrawer, polyline, rectangle, spiral_out, square, staircase, stepped_circle
+from etch_sim.draw import GraspFailed
 from etch_sim.endstop import EndStopRisk, GuardedDrawer, GuardParams, TravelGuard
 from etch_sim.kernel import ToyParams
 from etch_sim.planner import PlanParams, plan_for_budget
 
 MARGIN_MM = 5.0
-SWITCH_S = 10.0          # release + grasp, blue arm 2026-11-22
+SWITCH_S = 4.0           # release + grasp: 3.7 s median on the green arm 2026-11-24 (blue arm 2026-11-22: ~10 s)
 ROUTINE_MAX_S = 1800.0   # envelope max_duration_s: the server ends the routine after this
 
 
@@ -88,6 +89,9 @@ def main() -> None:
     ap.add_argument("--pause", action="store_true", help="wait for Enter before every line")
     ap.add_argument("--start-unc", type=float, default=5.0,
                     help="how sure --start is, mm (by eye ~5, wrist camera ~1.5); the end-stop guard grows it per move")
+    ap.add_argument("--knob-dps", type=float, help="knob speed, deg/s (default: knob_speed_dps from --poses); the motion "
+                    "server caps it (KINOVA_ROTATE_MAX_DPS, 15 unless raised for the arm)")
+    ap.add_argument("--slow-dps", type=float, default=5.0, help="knob speed within 15 mm of an edge, deg/s (15 deg steps)")
     ap.add_argument("--poses", default="hardware/taught_poses.json",
                     help="knob poses for RealBackend; hardware/knob_poses_live.json after relocate.py solve")
     a = ap.parse_args()
@@ -95,6 +99,8 @@ def main() -> None:
     toy = ToyParams()
     calib = Calib({ax: toy.axis(ax).k_mm_per_deg for ax in "xy"}, {ax: toy.axis(ax).delta_deg for ax in "xy"})
     poses = json.loads(Path(a.poses).read_text())
+    if a.knob_dps:
+        poses["knob_speed_dps"] = a.knob_dps
     speed = float(poses.get("knob_speed_dps") or 15.0)
     start = np.array([float(v) for v in a.start.split(",")])
     pre_mm = {ax: 0.0 if a.no_preload else (2 * calib.delta_deg[ax] + 10.0) * calib.k_mm_per_deg[ax] for ax in "xy"}  # at most
@@ -157,7 +163,7 @@ def main() -> None:
     guard = TravelGuard(GuardParams(travel_mm={"x": toy.x.travel_mm, "y": toy.y.travel_mm}, margin_mm=MARGIN_MM))
     for i, ax in enumerate("xy"):
         guard.anchor(ax, float(start[i]), a.start_unc)
-    d = GuardedDrawer(b, calib, guard)                   # refuses any move that could reach an end stop, before turning
+    d = GuardedDrawer(b, calib, guard, slow_dps=a.slow_dps)   # refuses any move that could reach an end stop, before turning
     t0 = time.time()
     try:
         if not a.no_preload:
@@ -171,6 +177,12 @@ def main() -> None:
             r = b.log[-1]
             print(f"  {i:2d}. {axis} {mm:+6.1f} mm: wrist {r.get('wrist_deg', float('nan')):+7.1f} deg   t={time.time() - t0:5.0f} s")
         b.release()
+    except GraspFailed as e:
+        print(f"STOPPED: {e}")
+        if b.held:                                       # a turn failed with the knob in hand: let go and lift
+            b.release()                                  # (a failed grasp has already opened and lifted)
+        print("Nothing more was drawn. Re-locate the board (relocate.py auto) if it was moved or shaken, then rerun.")
+        raise SystemExit(1)
     except EndStopRisk as e:
         print(f"STOPPED before turning: {e}")
         b.release()

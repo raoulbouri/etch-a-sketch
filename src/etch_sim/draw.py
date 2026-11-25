@@ -17,6 +17,21 @@ class Calib:
     delta_deg: dict = field(default_factory=lambda: {"x": 13.5, "y": 13.5})
 
 
+class GraspFailed(RuntimeError):
+    """A knob was not gripped or did not turn: the drawing stops (nothing is drawn with the wrist turning in air)."""
+
+
+def grasp_or_stop(robot: Skills, axis: Axis) -> None:
+    if not robot.grasp_knob(axis):
+        raise GraspFailed(f"{axis} knob not gripped (missed, or the toy moved since the last re-locate)")
+
+
+def turn_or_stop(robot: Skills, deg: float) -> None:
+    r = robot.rotate(deg)
+    if not getattr(r, "ok", True):
+        raise GraspFailed(f"knob turn of {deg:+.1f} deg did not happen: {getattr(r, 'note', '')}")
+
+
 class OpenLoopDrawer:
     def __init__(self, robot: Skills, calib: Calib, compensate_backlash: bool = True,
                  preload_margin_deg: float = 10.0):
@@ -31,8 +46,8 @@ class OpenLoopDrawer:
         Leaves a short mark; the drawing is defined to start where the pen ends up.
         """
         for axis in ("x", "y"):
-            self.robot.grasp_knob(axis)
-            self.robot.rotate(2 * self.calib.delta_deg[axis] + self.margin)
+            grasp_or_stop(self.robot, axis)
+            turn_or_stop(self.robot, 2 * self.calib.delta_deg[axis] + self.margin)
             self.last_dir[axis] = 1.0
 
     def move(self, axis: Axis, mm: float) -> None:
@@ -42,8 +57,8 @@ class OpenLoopDrawer:
         deg = mm / self.calib.k_mm_per_deg[axis]
         if self.compensate and s != self.last_dir[axis]:
             deg += s * 2 * self.calib.delta_deg[axis]
-        self.robot.grasp_knob(axis)
-        self.robot.rotate(deg)
+        grasp_or_stop(self.robot, axis)
+        turn_or_stop(self.robot, deg)
         self.last_dir[axis] = s
 
     def draw(self, moves: list[Move]) -> None:

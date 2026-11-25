@@ -39,6 +39,8 @@ from etch_sim.real import wrist_camera as W
 ROOT = Path(__file__).resolve().parents[1]
 RELOC = ROOT / "test_images" / "relocate"
 APPROACH_M = 0.05                    # approach pose: straight above the grasp
+HANDOVER_Z_M = 0.20                  # above a knob, inside BOTH the re-locate envelope (floor 0.188 m) and the
+                                     # drawing envelope, so demo.py can switch routines without a move outside one
 ROUTINE_FLOOR_M = 0.20               # views keep the tool frame at least this high
 SIDEWAYS_TOL_MM = 3.0               # knob grasp, predicted vs hand-corrected
 HEIGHT_TOL_MM = 5.0                 # hand grasp heights of one knob spread ~4 mm (2026-11-24): height is grip choice
@@ -313,10 +315,11 @@ def drawing_envelope(boards: list, st: dict) -> Path:
     for b in boards:
         for rel in d["grasps"].values():
             g = B.grasp_in_base(b, rel)
-            pts += [g[:3], g[:2] + [g[2] + APPROACH_M]]
+            pts += [g[:3], g[:2] + [g[2] + APPROACH_M], g[:2] + [HANDOVER_Z_M]]
     P = np.array(pts)
     lo, hi = P.min(0) - 0.03, P.max(0) + 0.03
     lo[2] = P[:, 2].min() - 0.015
+    hi[2] = HANDOVER_Z_M + 0.02          # the handover pose (above a knob, inside the re-locate box too) fits
     env = {"name": f"etch_draw_workspace_{st['ip'].split('.')[-1]}",
            "box_min": [round(float(v), 3) for v in lo], "box_max": [round(float(v), 3) for v in hi],
            "max_lin_speed": 0.05, "max_ang_speed": 30.0, "max_tilt_deg": 5.0, "rotate_joint": 6,

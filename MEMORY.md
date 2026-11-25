@@ -298,6 +298,19 @@ newest first, timestamped from the system clock).
 - Which LLM API for the agent.
 
 ## Log
+### 2026-11-24 23:26 EST | Raoul Bouri (+ Claude)
+- scripts/demo.py: checks -> re-locate (relocate_workspace_10, operator types yes) -> handover pose -> draw
+  (etch_draw_workspace_10 at KINOVA_ROTATE_MAX_DPS=30, operator types yes) -> park at z 0.20. The two envelopes did not
+  overlap in height (0.188 vs 0.134 m): drawing envelope ceiling raised to 0.22 m for a handover at z 0.20, placed in the
+  overlap of both boxes nearest above the left knob (straight above it is outside the re-locate box for 8 of 27
+  workspace placements: tests/test_demo.py). Dry run catches an arm parked outside the re-locate box. 78 tests pass.
+### 2026-11-24 23:23 EST | Raoul Bouri (+ Claude)
+- First spiral on the arm: the toy had been shaken (re-locate found it moved 4 cm / 13 deg; the earlier attempt with old
+  poses failed its grasp -> grasp now closes fully to detect the knob, then eases to the light grip; the drawer stops on
+  any failed grasp/turn). After a fresh re-locate: 60 mm centre-out spiral, 24 lines, 631 s (estimate 6-7 min; slow
+  15-deg steps near edges cost ~3.5 min of it), 306 commands, no refusals, no failed grasps, backstop never tripped.
+  Knobs at up to 30 deg/s (KINOVA_ROTATE_MAX_DPS=30, green arm). J6 torque while turning: mean 0.24, p99 0.51, max
+  0.64 Nm vs the 0.70 Nm backstop: margin is thin at 30 deg/s. J2 max 41.3 C. Drawing quality: awaiting Raoul's photo.
 ### 2026-11-24 22:54 EST | Raoul Bouri (+ Claude)
 - draw.spiral_out (centre-out rectangular spiral) + draw_shapes.py `spiral`; draw_shapes now runs the WHOLE drawing
   through the end-stop guard before moving (open loop a 60 mm spiral from the middle passes, ending at +-24 mm; 84 mm is

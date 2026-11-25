@@ -211,7 +211,24 @@ uv run python scripts/draw_shapes.py spiral --size 60 --steps 6 --start 76,52 --
 uv run python scripts/draw_shapes.py spiral --size 60 --steps 6 --start 76,52 --poses hardware/knob_poses_live.json
 ```
 
-`spiral` is the centre-out rectangular spiral (`draw.spiral_out`): 6 loops, 60 x 45 mm, 24 lines, ~13 min.
+`spiral` is the centre-out rectangular spiral (`draw.spiral_out`): 6 loops, 60 x 45 mm, 24 lines. Each grasp closes
+fully first (a stall at ~0.63 means the knob is there, a full close means it is not) and then eases to the light grip;
+any failed grasp or turn stops the drawing. Re-locate after every erase or bump: shaking moves the toy.
+
+### Demo: re-locate and draw in one command
+
+```bash
+uv run python scripts/demo.py spiral --size 60 --steps 6 --start 86,52 --dry-run   # checks only, no motion
+uv run python scripts/demo.py spiral --size 60 --steps 6 --start 86,52             # the demo
+```
+
+Run it in an interactive terminal on the Mac, with the arm parked inside the re-locate envelope (where the demo also
+ends) and the Xbox pad unplugged. It starts the motion server twice and **you type `yes` to each envelope**:
+`relocate_workspace_10` (look, survey if needed, 5 views, knob poses), then a handover pose above the left knob at
+z 0.20 m that lies inside both envelopes, then `etch_draw_workspace_10` with knobs at 30 deg/s
+(`KINOVA_ROTATE_MAX_DPS`, green arm) for `draw_shapes.py`, then park at z 0.20 m. `--start` is the pen's position by
+eye; shaking does not move it. Green arm, 2026-11-24: a 60 mm spiral after a 4 cm / 13 deg shake drew all 24 lines in
+10.5 min (306 commands, no refusals, peak joint-6 torque 0.64 Nm against the 0.70 Nm backstop).
 
 ## Code layout
 

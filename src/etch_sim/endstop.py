@@ -30,7 +30,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from .draw import Calib, OpenLoopDrawer
+from .draw import Calib, OpenLoopDrawer, grasp_or_stop, turn_or_stop
 
 
 class EndStopRisk(RuntimeError):
@@ -147,7 +147,7 @@ class GuardedDrawer(OpenLoopDrawer):
         if self.compensate and s != self.last_dir[axis]:
             deg += s * 2 * self.calib.delta_deg[axis]
         n = max(1, math.ceil(abs(deg) / self.edge_step_deg))
-        self.robot.grasp_knob(axis)
+        grasp_or_stop(self.robot, axis)
         had = hasattr(self.robot, "speed_dps_override")
         old = getattr(self.robot, "speed_dps_override", None)
         if had:
@@ -155,7 +155,7 @@ class GuardedDrawer(OpenLoopDrawer):
         try:
             for _ in range(n):
                 try:
-                    self.robot.rotate(deg / n)
+                    turn_or_stop(self.robot, deg / n)
                 except Exception as e:                      # the arm felt the stop: pin the axis, then stop drawing
                     if "TORQUE_LIMIT" in str(e):
                         self.guard.hit_stop(axis, s)
